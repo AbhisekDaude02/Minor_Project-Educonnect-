@@ -24,6 +24,27 @@ const userSchema = new mongoose.Schema({
     type:String,
     enum:["student","Professional"],
     default:"student"
+ },
+
+ isverified:{
+   type:Boolean,
+   default:false
+ },
+isLogging:{
+   type:Boolean,
+   default:false
+},
+
+profilepic:{
+   type:String,
+   default:""
+},
+ verificationToken:{
+   type:String,
+
+ },
+ verificationTokenExpires:{
+   type:Date,
  }
 },{timestamps:true})
 
