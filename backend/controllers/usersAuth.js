@@ -83,10 +83,12 @@ return res.status(201).json({
 
 
     } catch (error) {
-        return res.status(500).json({
-            message:"Failed to create the user"
-        })
-        
+        console.log("REGISTRATION ERROR:", error);
+
+    return res.status(500).json({
+        message: "Failed to create the user",
+        error: error.message
+    });
     }
 }
 
@@ -226,4 +228,23 @@ const userLogout = async(req,res)=>{
     }
 }
 
-module.exports ={ userRegister,verifyEmail,loginUser,userLogout};
+//Get All the user
+
+const getAllUser = async (req,res)=>{
+    try {
+        const user = await User.find();
+        res.status(200).json({
+            message:"All the user are fetch successfully",
+            users:user
+        });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            message:"Failed to get the users",
+            error:error.message
+        })
+        
+    }
+}
+
+module.exports ={ userRegister,verifyEmail,loginUser,userLogout,getAllUser};

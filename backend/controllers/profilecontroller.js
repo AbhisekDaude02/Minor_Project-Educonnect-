@@ -26,7 +26,7 @@ const profilepicture = async(req,res)=>{
 
        res.status(200).json({
         message:"Profile uploaded successfully",
-        profilepic:profilepic
+        profilepic:user.profilepic
        })
     } catch (error) {
         console.log(error);
@@ -37,4 +37,4 @@ const profilepicture = async(req,res)=>{
     }
 }
 
-module.exports =profilepicture
+module.exports =profilepicture;

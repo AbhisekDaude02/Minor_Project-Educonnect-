@@ -6,12 +6,14 @@ const connectDB = require("./db");
 dotenv.config();
 
 const userRoutes = require("./routes/userRoutes")
+const connectionRoutes = require("./routes/connectionRoutes");
+const postModel = require("./routes/postRoutes")
 
 
 const app = express();
-PORT = process.env.PORT
+const PORT = process.env.PORT || 3000
 // Middelware
-app.use(cors());
+app.use( cors({ origin: "http://localhost:5173", credentials: true }) );
 app.use(express.json());
 app.use(cookieParser());
 
@@ -20,8 +22,9 @@ app.get("/",(req,res)=>{
 });
 
 //Main routes API end points
-app.use("/api/auth",userRoutes)
-
+app.use("/api/auth",userRoutes);
+app.use("/api/connection",connectionRoutes)
+app.use("/api/post",postModel)
 const startServer = async()=>{
     await connectDB();
     app.listen(PORT,()=>{
