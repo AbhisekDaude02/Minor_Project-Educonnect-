@@ -1,13 +1,17 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
-const cookieParser = require("cookie-parser")
+const cookieParser = require("cookie-parser");
+const http =require("http");
+const {Server}= require("socket.io") 
 const connectDB = require("./db");
 dotenv.config();
 
-const userRoutes = require("./routes/userRoutes")
+const userRoutes = require("./routes/userRoutes");
 const connectionRoutes = require("./routes/connectionRoutes");
-const postModel = require("./routes/postRoutes")
+const postModel = require("./routes/postRoutes");
+const messageRoutes = require("./routes/messageRoutes");
+const socketConnection= require("./socket/socket")
 
 
 const app = express();
@@ -25,11 +29,33 @@ app.get("/",(req,res)=>{
 app.use("/api/auth",userRoutes);
 app.use("/api/connection",connectionRoutes)
 app.use("/api/post",postModel)
+app.use("/api/message", messageRoutes);
+
+//Creating the server using the http 
+const server = http.createServer(app);
+const io = new Server(server,{
+    cors:{
+        origin:"http://localhost:5173",
+        methods:[
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE"
+        ],
+        credentials:true
+    }
+})
+
+socketConnection(io);
 const startServer = async()=>{
-    await connectDB();
-    app.listen(PORT,()=>{
+   try {
+     await connectDB();
+    server.listen(PORT,()=>{
         console.log(`Server is running at port ${PORT}`);
     })
+   } catch (error) {
+      console.log("Server failed to start:",error);
+   }
 
 }
 startServer();

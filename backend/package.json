@@ -27,6 +27,7 @@
     "multer-storage-cloudinary": "^4.0.0",
     "nodemailer": "^10.0.10",
     "nodemon": "^3.1.14",
+    "socket.io": "^4.8.4",
     "token": "^0.1.0",
     "web": "^0.0.2"
   }
