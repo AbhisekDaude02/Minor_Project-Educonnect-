@@ -11,7 +11,8 @@ const userRoutes = require("./routes/userRoutes");
 const connectionRoutes = require("./routes/connectionRoutes");
 const postModel = require("./routes/postRoutes");
 const messageRoutes = require("./routes/messageRoutes");
-const socketConnection= require("./socket/socket")
+const socketConnection= require("./socket/socket");
+const notesRoutes = require("./routes/notesRoutes")
 
 
 const app = express();
@@ -30,6 +31,7 @@ app.use("/api/auth",userRoutes);
 app.use("/api/connection",connectionRoutes)
 app.use("/api/post",postModel)
 app.use("/api/message", messageRoutes);
+app.use("/api/notes",notesRoutes);
 
 //Creating the server using the http 
 const server = http.createServer(app);
