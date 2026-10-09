@@ -1,23 +1,37 @@
 const User = require("../models/usersModel");
 const Post = require("../models/postModel");
 const { post } = require("../routes/connectionRoutes");
+const { cloudinary } = require("../utils/cloudinary");
 
 // Making the controller for post 
 
 const createPost = async (req,res)=>{
+
+    let imagepath;
     try {
         const userId = req.user.userId;
 
         const{content}= req.body;
-        if(!content || content.trim()===""){
+        if(!content || content.trim()==="" && !req.file){
             return res.status(400).json({
-                message:"Content is needed"
+                message:"please provide the content or select the image"
             })
         }
+        let imageUrl = null;
 
+        if(req.file){
+            imagepath = req.file.path;
+            const result = await cloudinary.uploader.upload(imagepath,{
+                folder:"educonnect/postImage",
+                resource_type:"image"
+            })
+
+            imageUrl=result.secure_url;
+        }
         const post = await Post.create({
             author:userId,
-            content:content.trim()
+            content:content.trim(),
+            image:imageUrl
         })
 
 
