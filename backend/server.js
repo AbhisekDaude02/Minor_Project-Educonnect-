@@ -12,7 +12,9 @@ const connectionRoutes = require("./routes/connectionRoutes");
 const postModel = require("./routes/postRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const socketConnection= require("./socket/socket");
-const notesRoutes = require("./routes/notesRoutes")
+const notesRoutes = require("./routes/notesRoutes");
+const jobRoutes = require("./routes/jobRoutes");
+const jobApplicationRoutes = require("./routes/jobApplicationRoutes")
 
 
 const app = express();
@@ -20,6 +22,7 @@ const PORT = process.env.PORT || 3000
 // Middelware
 app.use( cors({ origin: "http://localhost:5173", credentials: true }) );
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 app.get("/",(req,res)=>{
@@ -32,7 +35,8 @@ app.use("/api/connection",connectionRoutes)
 app.use("/api/post",postModel)
 app.use("/api/message", messageRoutes);
 app.use("/api/notes",notesRoutes);
-
+app.use("/api/job",jobRoutes);
+app.use("/api/applyjob",jobApplicationRoutes);
 //Creating the server using the http 
 const server = http.createServer(app);
 const io = new Server(server,{
