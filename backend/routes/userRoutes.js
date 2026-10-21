@@ -6,7 +6,9 @@ const {
     verifyEmail,
     loginUser,
     userLogout,
-    getAllUser
+    getAllUser,
+    forgetPassword,
+    resetPassword
 } = require("../controllers/usersAuth");
 
 const authMiddleware = require("../middlewares/authmiddleware");
@@ -29,6 +31,8 @@ router.put(
     upload.single("profilepic"),
     profilepicture
 );
-router.get("/getallusers",getAllUser)
+router.get("/getallusers",getAllUser);
+router.post("/forgetpass",forgetPassword);
+router.post("/resetpass/:token",resetPassword);
 
 module.exports = router;

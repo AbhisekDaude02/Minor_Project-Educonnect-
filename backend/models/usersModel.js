@@ -45,6 +45,14 @@ profilepic:{
  },
  verificationTokenExpires:{
    type:Date,
+ },
+
+ resetToken:{
+   type:String,
+
+ },
+ resetTokenExpires:{
+   type:Date
  }
 },{timestamps:true})
 

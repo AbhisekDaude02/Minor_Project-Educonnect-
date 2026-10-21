@@ -247,4 +247,132 @@ const getAllUser = async (req,res)=>{
     }
 }
 
-module.exports ={ userRegister,verifyEmail,loginUser,userLogout,getAllUser};
+// Making the controller to forget the password
+
+const forgetPassword = async (req,res)=>{
+    try {
+        const {email} = req.body;
+
+        const user = await User.findOne({email});
+
+        if(!user){
+            return res.status(400).json({
+                message:"User not found"
+            })
+        }
+
+        if(user.isverified !== true){
+            return res.status(400).json({
+                message:"You are not verfied user"
+            })
+        }
+
+        const resetToken = crypto.randomBytes(36).toString('hex');
+        const resetTokenExpires = new Date(Date.now() + 50 * 60 *1000);
+        const resetURL = `http://localhost:3000/api/auth/resetpass/${resetToken}`;
+
+        await sendEmail(
+            email,
+            "Click to reset the password from Eduonnect",
+
+           `<h2>Welcome to Educonnect, ${user.fullName}!</h2>
+
+        <p>Thank you for registering.</p>
+
+        <p>Please click the button below to verify your email:</p>
+
+        <a 
+          href="${resetURL}"
+          style="
+            display:inline-block;
+            padding:12px 20px;
+            background:#2563eb;
+            color:white;
+            text-decoration:none;
+            border-radius:6px;
+          "
+        >
+          click to resetpassword
+        </a>
+
+        <p>This verification link expires in 15 minutes.</p>
+        `
+        )
+        
+ user.resetToken = resetToken;
+ user.resetTokenExpires = resetTokenExpires;
+
+ await user.save();
+
+ return res.status(200).json({
+    message:"email sent successfully to the use check your mail",
+    user
+
+ })
+
+    } catch (error) {
+
+        console.log("Error in forgetPassword",error);
+
+        return res.status(500).json({
+            message:"Failed to do forget password",
+            error:error.message
+        })
+        
+        
+    }
+}
+
+// Making the controller to reset the password
+
+const resetPassword = async (req,res)=>{
+    try {
+        const {token} = req.params;
+        const {newPassword,confirmPassword} = req.body;
+
+        if(!newPassword || !confirmPassword){
+            return res.status(400).json({
+                message:"The field are required"
+            })
+        }
+
+        if(newPassword !== confirmPassword){
+            return res.status(400).json({
+                message:"Both the newPassword and confirmPassword"
+            })
+        }
+
+        const user = await User.findOne({
+            resetToken:token,
+            resetTokenExpires:{$gt:new Date()}
+        });
+
+        if(!user){
+            return res.status(400).json({
+                message:"user not found with this token"
+            })
+        }
+
+        const hashPassword = await bcrypt.hash(newPassword,12);
+
+        user.password = hashPassword;
+
+        user.resetToken = undefined;
+        user.resetTokenExpires = undefined;
+
+        await user.save();
+        return res.status(200).json({
+            message:"Password reset successfully",
+            user
+        })
+    } catch (error) {
+        console.log("Error in resting the password",error);
+        return res.status(500).json({
+            message:"Failed to reset the password",
+            error:error.message
+        })
+        
+        
+    }
+}
+module.exports ={ userRegister,verifyEmail,loginUser,userLogout,getAllUser,forgetPassword,resetPassword};
