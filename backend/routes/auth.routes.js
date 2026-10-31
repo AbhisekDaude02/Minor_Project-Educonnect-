@@ -1,0 +1,14 @@
+const router = require("express").Router();
+const rateLimit = require("express-rate-limit");
+const c = require("../controllers/controller");
+const auth = require("../middleware/auth").auth;
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false, message: { message: "Too many authentication requests. Try again later." } });
+router.post("/register", authLimiter, c.register);
+router.post("/login", authLimiter, c.login);
+router.post("/verify-email", authLimiter, c.verifyEmail);
+router.post("/resend-verification", authLimiter, c.resendVerification);
+router.post("/forgot-password", authLimiter, c.forgotPassword);
+router.post("/reset-password", authLimiter, c.resetPassword);
+router.post("/change-password", auth, c.changePassword);
+router.get("/me", auth, c.getMe);
+module.exports = router;

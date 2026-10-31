@@ -1,0 +1,6 @@
+import React from "react";
+export default function About(){return <div className="content about-page">
+ <header className="page-head"><div><span className="eyebrow">THE PEOPLE-POWERED CAMPUS</span><h1>About EduConnect</h1><p>One connected space to learn, share, and move forward.</p></div></header>
+ <section className="about-hero card"><div className="about-orbit"><span>EC</span><i/><b/></div><div><span className="eyebrow bright">CONNECT · LEARN · GROW</span><h2>Make your next<br/><em>chapter happen.</em></h2><p>EduConnect brings students and professionals together through meaningful conversations, shared knowledge, and real career opportunities.</p></div></section>
+ <div className="about-grid"><article className="card about-tile"><span>01 / COMMUNITY</span><h3>Find your people.</h3><p>Build a network that supports your ambitions and celebrates progress.</p></article><article className="card about-tile"><span>02 / KNOWLEDGE</span><h3>Share what you know.</h3><p>Discover learning resources and exchange ideas with your community.</p></article><article className="card about-tile"><span>03 / OPPORTUNITY</span><h3>Move your future forward.</h3><p>Explore jobs and internships and take the next practical step.</p></article></div>
+ <footer className="about-footer">Built for curious minds and ambitious futures. <b>EduConnect ©</b></footer></div>}
