@@ -8,7 +8,8 @@ const {
     userLogout,
     getAllUser,
     forgetPassword,
-    resetPassword
+    resetPassword,
+    getLoggedInUser
 } = require("../controllers/usersAuth");
 
 const authMiddleware = require("../middlewares/authmiddleware");
@@ -31,8 +32,10 @@ router.put(
     upload.single("profilepic"),
     profilepicture
 );
+router.get("/getloginuser",authMiddleware,getLoggedInUser)
 router.get("/getallusers",getAllUser);
 router.post("/forgetpass",forgetPassword);
 router.post("/resetpass/:token",resetPassword);
+router
 
 module.exports = router;

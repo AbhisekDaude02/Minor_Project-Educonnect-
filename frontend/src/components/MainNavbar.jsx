@@ -21,7 +21,7 @@ import {
 import { AuthContext } from "../context/authContext";
 
 const MainNavbar = () => {
-  const { setIsLogging } = useContext(AuthContext);
+  const { setIsLogging, users } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const [user, setUser] = useState(() => {
@@ -63,18 +63,9 @@ const MainNavbar = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const fullName = user.fullName || user.name || user.username || "Student";
+  const fullName = users.fullName;
 
-  const email = user.email || "";
-
-  // Support common profile image property names.
-  const avatar =
-    user.profilepic ||
-    user.profilePic ||
-    user.avatar ||
-    user.profileImage ||
-    user.image ||
-    "";
+  const email = users.email;
 
   const initials = fullName
     .trim()
@@ -86,15 +77,15 @@ const MainNavbar = () => {
 
   const navItems = [
     { label: "Home", path: "/educonnect", icon: FiHome, end: true },
-    { label: "Community", path: "/educonnect/community", icon: FiUsers },
+    { label: "Community", path: "/educonnect/friend", icon: FiUsers },
     {
       label: "Study Materials",
-      path: "/educonnect/study-materials",
+      path: "/educonnect/notes",
       icon: FiBookOpen,
     },
     {
       label: "Jobs & Internships",
-      path: "/educonnect/jobs",
+      path: "/educonnect/job",
       icon: FiBriefcase,
     },
     {
@@ -186,14 +177,12 @@ const MainNavbar = () => {
 
         {/* Notifications and profile */}
         <div className="flex shrink-0 items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate("/educonnect/notifications")}
-            aria-label="Notifications"
+          <NavLink
+            to="/educonnect/notification"
             className="relative hidden h-10 w-10 items-center justify-center rounded-xl text-slate-600 transition hover:bg-emerald-50 hover:text-emerald-700 sm:flex"
           >
             <FiBell size={21} />
-          </button>
+          </NavLink>
 
           <div className="hidden h-8 w-px bg-slate-200 sm:block" />
 
@@ -206,10 +195,10 @@ const MainNavbar = () => {
               aria-label="Open profile menu"
               className="flex items-center gap-2.5 rounded-xl p-1.5 transition hover:bg-slate-50"
             >
-              {avatar ? (
+              {users.profilepic !== "" ? (
                 <img
-                  src={avatar}
-                  alt={`${fullName}'s profile`}
+                  src={users.profilepic}
+                  alt={`${users.fullName}'s profile`}
                   onError={(event) => {
                     event.currentTarget.style.display = "none";
                   }}
@@ -223,7 +212,7 @@ const MainNavbar = () => {
 
               <span className="hidden max-w-28.75 text-left xl:block">
                 <span className="block truncate text-sm font-semibold text-slate-800">
-                  {fullName}
+                  {users.fullName}
                 </span>
                 <span className="block text-xs text-slate-500">My account</span>
               </span>
@@ -241,10 +230,10 @@ const MainNavbar = () => {
                 {/* User information */}
                 <div className="border-b border-slate-100 px-4 py-4">
                   <div className="flex items-center gap-3">
-                    {avatar ? (
+                    {users.profilepic !== "" ? (
                       <img
-                        src={avatar}
-                        alt={fullName}
+                        src={users.profilepic}
+                        alt={users.fullName}
                         className="h-12 w-12 rounded-full border border-slate-200 object-cover"
                       />
                     ) : (
@@ -253,13 +242,17 @@ const MainNavbar = () => {
                       </span>
                     )}
 
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex flex-col ">
                       <p className="truncate text-sm font-semibold text-slate-900">
-                        {fullName}
+                        {users.fullName}
                       </p>
                       <p className="truncate text-xs text-slate-500">
-                        {email || "Welcome to Educonnect"}
+                        {users.email || "Welcome to Educonnect"}
                       </p>
+                        <p className="items-center text-sm text-gray-500">
+                          {users.role}
+                        </p>
+                      
                       <p className="mt-1 flex items-center gap-1.5 text-xs text-emerald-700">
                         <span className="h-2 w-2 rounded-full bg-emerald-500" />
                         Logged in

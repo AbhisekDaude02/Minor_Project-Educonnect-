@@ -16,7 +16,7 @@ import {
 } from "react-icons/fi";
 
 import { FaGoogle, FaGithub, FaGraduationCap } from "react-icons/fa";
-import { userLogin } from "../services/authServices";
+import { getLoggedUser, userLogin } from "../services/authServices";
 import toast from "react-hot-toast";
 import { AuthContext } from "../context/authContext";
 
@@ -49,10 +49,9 @@ const LoginPage = () => {
     email: "",
     password: "",
   });
-
   const [loading, setLoding] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { setIsLogging } = useContext(AuthContext);
+  const { setIsLogging,setUsers } = useContext(AuthContext);
   const handleChange = (e) => {
     setLoginData({
       ...loginData,
@@ -65,8 +64,11 @@ const LoginPage = () => {
     try {
       setLoding(true);
       await userLogin(loginData);
+
+      const userInfo = await getLoggedUser();
+      setUsers(userInfo.data.user)
       setIsLogging(true);
-      navigate("/educonnect")
+      navigate("/educonnect");
       toast.success("Login successfully");
     } catch (error) {
       toast.error("login failed");
@@ -74,6 +76,7 @@ const LoginPage = () => {
       setLoding(false);
     }
   };
+
 
   return (
     <main

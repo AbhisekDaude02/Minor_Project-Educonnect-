@@ -14,6 +14,10 @@ import { AuthContext } from "./context/authContext";
 import ProtectedLayout from "./layouts/ProtectedLayout";
 import Message from "./pages/main/Message";
 import Feed from "./pages/main/Feed";
+import Note from "./pages/main/Note";
+import Jobs from "./pages/main/Job";
+import Friend from "./pages/main/Friend";
+import MyProfile from "./pages/main/MyProfile";
 
 const router = createBrowserRouter([
   {
@@ -73,6 +77,28 @@ const router = createBrowserRouter([
       {
         path:"message",
         element:<Message/>
+      },
+      {
+        path:"notes",
+        element:<Note/>
+      },
+
+      {
+        path:"job",
+        element:<Jobs/>
+      },
+
+      {
+        path:"notification",
+        element:<Notification/>
+      },
+      {
+        path:"friend",
+        element:<Friend/>
+      },
+      {
+        path:"profile",
+        element:<MyProfile/>
       }
     ]
   }

@@ -228,6 +228,42 @@ const userLogout = async(req,res)=>{
     }
 }
 
+
+
+// Get currently logged-in user
+
+const getLoggedInUser = async (req, res) => {
+    try {
+        // Get user ID from authMiddleware
+        const userId = req.user.userId;
+
+        // Find user from MongoDB
+        const user = await User.findById(userId)
+            .select("-password -verificationToken -resetToken");
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "User information fetched successfully",
+            user
+        });
+
+    } catch (error) {
+        console.log("GET LOGGED IN USER ERROR:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch user information"
+        });
+    }
+};
+
 //Get All the user
 
 const getAllUser = async (req,res)=>{
@@ -375,4 +411,4 @@ const resetPassword = async (req,res)=>{
         
     }
 }
-module.exports ={ userRegister,verifyEmail,loginUser,userLogout,getAllUser,forgetPassword,resetPassword};
+module.exports ={ userRegister,verifyEmail,loginUser,userLogout,getLoggedInUser,getAllUser,forgetPassword,resetPassword};

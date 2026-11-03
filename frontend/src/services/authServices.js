@@ -11,3 +11,7 @@ export const userLogin = (credentials)=>{
 export const userLogout = ()=>{
     return API.post("/auth/userlogout")
 }
+
+export const getLoggedUser = ()=>{
+    return API.get("/auth/getloginuser")
+}
