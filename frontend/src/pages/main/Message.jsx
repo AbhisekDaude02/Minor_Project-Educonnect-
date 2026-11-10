@@ -1,875 +1,979 @@
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 
-import React, { useState, useRef, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import toast from "react-hot-toast";
+
 import {
   FiSearch,
-  FiEdit,
-  FiMoreVertical,
+  FiSend,
   FiPhone,
   FiVideo,
-  FiUser,
-  FiSmile,
+  FiMic,
+  FiSquare,
   FiPaperclip,
   FiImage,
-  FiSend,
-  FiArrowLeft,
   FiCheck,
   FiCheckCircle,
-  FiUsers,
-  FiShield,
-  FiX,
-  FiInfo,
+  FiPhoneOff,
+  FiVolumeX,
+  FiVideoOff,
+  FiUser,
+  FiArrowLeft,
+  FiMessageCircle,
 } from "react-icons/fi";
 
-const currentUser = {
-  name: "Abhisek Daude",
-  image: "https://i.pravatar.cc/150?img=12",
+import { AuthContext } from "../../context/authContext";
+import { socket } from "../../services/socket";
+
+import {
+  getConversations,
+  getMessages,
+  sendTextMessage,
+  sendAttachment,
+  markRead,
+} from "../../services/messageServices";
+
+import useWebRTCCall from "../../hooks/useWebRTCCall";
+
+const SERVER_URL = "http://localhost:3000";
+
+const fileUrl = (url) => {
+  if (!url) return "";
+  return /^https?:\/\//i.test(url)
+    ? url
+    : `${SERVER_URL}${url.startsWith("/") ? "" : "/"}${url}`;
 };
 
-const initialConversations = [
-  {
-    id: 1,
-    name: "Anjali Sharma",
-    role: "BSc CSIT Student",
-    image: "https://i.pravatar.cc/150?img=47",
-    online: true,
-    unread: 1,
-    time: "2m ago",
-    lastMessage: "Sure! Let's connect 😊",
-    interests: ["Programming", "AI", "Technology", "Learning"],
-    mutualFriends: 12,
-    messages: [
-      {
-        id: 1,
-        sender: "me",
-        text: "Hello Anjali! 👋",
-        time: "10:24 AM",
-        read: true,
-      },
-      {
-        id: 2,
-        sender: "other",
-        text: "Hi Abhisek! How are you?",
-        time: "10:25 AM",
-      },
-      {
-        id: 3,
-        sender: "me",
-        text: "I'm good. Are you free for a study session today?",
-        time: "10:26 AM",
-        read: true,
-      },
-      {
-        id: 4,
-        sender: "other",
-        text: "Sure! Let's connect 😊",
-        time: "10:27 AM",
-      },
-    ],
-  },
-  {
-    id: 2,
-    name: "Rohan Thapa",
-    role: "Computer Engineering Student",
-    image: "https://i.pravatar.cc/150?img=11",
-    online: true,
-    unread: 1,
-    time: "10m ago",
-    lastMessage: "Okay, see you there!",
-    interests: ["Engineering", "DSA", "Web Development"],
-    mutualFriends: 8,
-    messages: [
-      {
-        id: 1,
-        sender: "other",
-        text: "Hey Abhisek, are you coming to college?",
-        time: "09:40 AM",
-      },
-      {
-        id: 2,
-        sender: "me",
-        text: "Yes, I'll be there soon.",
-        time: "09:42 AM",
-        read: true,
-      },
-      {
-        id: 3,
-        sender: "other",
-        text: "Okay, see you there!",
-        time: "09:45 AM",
-      },
-    ],
-  },
-  {
-    id: 3,
-    name: "Study Group",
-    role: "8 members",
-    image: null,
-    group: true,
-    online: true,
-    unread: 2,
-    time: "1h ago",
-    lastMessage: "New assignment posted...",
-    interests: ["DBMS", "Programming", "Study"],
-    mutualFriends: 5,
-    messages: [
-      {
-        id: 1,
-        sender: "other",
-        text: "Has everyone completed the DBMS assignment?",
-        time: "08:20 AM",
-      },
-      {
-        id: 2,
-        sender: "me",
-        text: "Almost completed!",
-        time: "08:25 AM",
-        read: true,
-      },
-    ],
-  },
-  {
-    id: 4,
-    name: "Sita Bhandari",
-    role: "Software Developer",
-    image: "https://i.pravatar.cc/150?img=44",
-    online: false,
-    unread: 0,
-    time: "2h ago",
-    lastMessage: "Thanks for the help!",
-    interests: ["React", "JavaScript", "UI/UX"],
-    mutualFriends: 20,
-    messages: [
-      {
-        id: 1,
-        sender: "me",
-        text: "Let me know if you need any help.",
-        time: "Yesterday",
-        read: true,
-      },
-      {
-        id: 2,
-        sender: "other",
-        text: "Thanks for the help!",
-        time: "Yesterday",
-      },
-    ],
-  },
-  {
-    id: 5,
-    name: "Kiran Adhikari",
-    role: "Data Science Student",
-    image: "https://i.pravatar.cc/150?img=13",
-    online: true,
-    unread: 0,
-    time: "3h ago",
-    lastMessage: "Perfect! 👍",
-    interests: ["Python", "Machine Learning"],
-    mutualFriends: 10,
-    messages: [
-      {
-        id: 1,
-        sender: "other",
-        text: "I shared the Python notes.",
-        time: "Yesterday",
-      },
-      {
-        id: 2,
-        sender: "me",
-        text: "Perfect! 👍",
-        time: "Yesterday",
-        read: true,
-      },
-    ],
-  },
-  {
-    id: 6,
-    name: "Tech Learners",
-    role: "12 members",
-    image: null,
-    group: true,
-    online: true,
-    unread: 0,
-    time: "1d ago",
-    lastMessage: "Welcome to the group!",
-    interests: ["Technology", "Learning"],
-    mutualFriends: 4,
-    messages: [
-      {
-        id: 1,
-        sender: "other",
-        text: "Welcome to the group!",
-        time: "Yesterday",
-      },
-    ],
-  },
-  {
-    id: 7,
-    name: "Dipesh Chaudhary",
-    role: "AI Enthusiast",
-    image: "https://i.pravatar.cc/150?img=14",
-    online: false,
-    unread: 0,
-    time: "1d ago",
-    lastMessage: "Let's discuss AI sometime.",
-    interests: ["AI", "Python", "Deep Learning"],
-    mutualFriends: 15,
-    messages: [
-      {
-        id: 1,
-        sender: "other",
-        text: "Let's discuss AI sometime.",
-        time: "Yesterday",
-      },
-    ],
-  },
-];
+const Avatar = ({ user, size = "md" }) => {
+  const [failed, setFailed] = useState(false);
 
-const Avatar = ({ conversation, size = "md" }) => {
-  const sizes = {
-    sm: "w-9 h-9",
-    md: "w-11 h-11",
-    lg: "w-14 h-14",
-    xl: "w-24 h-24",
-  };
+  useEffect(() => {
+    setFailed(false);
+  }, [user?.profilepic]);
 
-  return (
-    <div className="relative shrink-0">
-      {conversation.image ? (
-        <img
-          src={conversation.image}
-          alt={conversation.name}
-          className={`${sizes[size]} rounded-full object-cover border border-slate-200`}
-        />
-      ) : (
-        <div
-          className={`${sizes[size]} rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center`}
-        >
-          <FiUsers size={size === "xl" ? 34 : 22} />
-        </div>
-      )}
+  const dimensions = size === "lg" ? "h-16 w-16" : "h-11 w-11";
 
-      {conversation.online && (
-        <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" />
-      )}
+  const initials = (user?.fullName || "U")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+
+  return user?.profilepic && !failed ? (
+    <img
+      src={fileUrl(user.profilepic)}
+      alt={user.fullName}
+      onError={() => setFailed(true)}
+      className={`${dimensions} shrink-0 rounded-full border border-slate-200 object-cover`}
+    />
+  ) : (
+    <div
+      className={`${dimensions} flex shrink-0 items-center justify-center rounded-full bg-emerald-100 font-bold text-emerald-700`}
+    >
+      {initials || "U"}
     </div>
   );
 };
 
 const Message = () => {
-  const [conversations, setConversations] = useState(
-    initialConversations
-  );
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
 
-  const [activeId, setActiveId] = useState(1);
+  const { users: me } = useContext(AuthContext);
+
+  const [conversations, setConversations] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [messages, setMessages] = useState([]);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("All");
-  const [message, setMessage] = useState("");
-  const [showProfile, setShowProfile] = useState(true);
+  const [draft, setDraft] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [typingUsers, setTypingUsers] = useState([]);
+  const [recording, setRecording] = useState(false);
+  const [mobileChat, setMobileChat] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
 
-  const messageEndRef = useRef(null);
+  const bottomRef = useRef(null);
+  const selectedRef = useRef(null);
+  const recorderRef = useRef(null);
+  const audioStreamRef = useRef(null);
+  const typingTimerRef = useRef(null);
+  const loadVersionRef = useRef(0);
+  const recordingTimerRef = useRef(null);
+  const recordingTargetRef = useRef(null);
+  const recordingStartRef = useRef(0);
 
-  const activeConversation = conversations.find(
-    (conversation) => conversation.id === activeId
+  const calls = useWebRTCCall();
+
+  const selected = conversations.find(
+    (item) => String(item.user?._id) === String(selectedId),
   );
 
-  const filteredConversations = conversations.filter((conversation) => {
-    const matchesSearch = conversation.name
-      .toLowerCase()
-      .includes(search.toLowerCase());
-
-    const matchesFilter =
-      filter === "All" ||
-      (filter === "Unread" && conversation.unread > 0) ||
-      (filter === "Groups" && conversation.group);
-
-    return matchesSearch && matchesFilter;
-  });
+  const otherUser = selected?.user;
 
   useEffect(() => {
-    messageEndRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "end",
-    });
-  }, [activeId, conversations]);
+    selectedRef.current = selectedId;
+  }, [selectedId]);
 
-  const selectConversation = (id) => {
-    setActiveId(id);
+  const loadConversations = async () => {
+    try {
+      const response = await getConversations();
+      const list = response.data.conversations || [];
 
-    setConversations((previous) =>
-      previous.map((conversation) =>
-        conversation.id === id
-          ? { ...conversation, unread: 0 }
-          : conversation
-      )
-    );
+      setConversations(list);
+
+      const requestedId = params.get("userId");
+
+      setSelectedId((previous) => {
+        if (
+          requestedId &&
+          list.some((c) => String(c.user?._id) === requestedId)
+        ) {
+          return requestedId;
+        }
+
+        if (
+          previous &&
+          list.some((c) => String(c.user?._id) === String(previous))
+        ) {
+          return previous;
+        }
+
+        return null; // Do not automatically open the first conversation
+      });
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || "Failed to load conversations",
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const sendMessage = (e) => {
-    e.preventDefault();
+  useEffect(() => {
+    if (!me?._id) return;
 
-    if (!message.trim()) return;
+    loadConversations();
+  }, [me?._id, params.get("userId")]);
 
-    const newMessage = {
-      id: Date.now(),
-      sender: "me",
-      text: message.trim(),
-      time: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      read: false,
+  useEffect(() => {
+    if (!selectedId) {
+      setMessages([]);
+      return;
+    }
+
+    const version = ++loadVersionRef.current;
+
+    const load = async () => {
+      try {
+        const response = await getMessages(selectedId);
+
+        if (version !== loadVersionRef.current) return;
+
+        setMessages(response.data.messages || []);
+
+        await markRead(selectedId);
+        loadConversations();
+      } catch (error) {
+        toast.error(error.response?.data?.message || "Failed to load messages");
+      }
     };
 
-    setConversations((previous) =>
-      previous.map((conversation) =>
-        conversation.id === activeId
-          ? {
-              ...conversation,
-              lastMessage: newMessage.text,
-              time: "Just now",
-              messages: [...conversation.messages, newMessage],
-            }
-          : conversation
-      )
-    );
+    load();
 
-    setMessage("");
+    return () => {
+      loadVersionRef.current += 1;
+    };
+  }, [selectedId]);
+
+  // ========================================
+  // SOCKET.IO
+  // ========================================
+
+  useEffect(() => {
+    if (!me?._id) return;
+
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    const onConnect = () => {
+      socket.emit("presence:get", (ids) => {
+        setOnlineUsers(ids || []);
+      });
+    };
+
+    const onNewMessage = async (message) => {
+      const senderId = String(message.sender?._id || message.sender);
+      const receiverId = String(message.recevier?._id || message.recevier);
+
+      const active = String(selectedRef.current);
+
+      if (active === senderId || active === receiverId) {
+        setMessages((previous) =>
+          previous.some((item) => String(item._id) === String(message._id))
+            ? previous
+            : [...previous, message],
+        );
+
+        if (senderId !== String(me._id) && active === senderId) {
+          await markRead(senderId).catch(console.error);
+        }
+      }
+
+      loadConversations();
+    };
+
+    const onRead = ({ readerId }) => {
+      setMessages((previous) =>
+        previous.map((message) =>
+          String(message.recevier?._id || message.recevier) === String(readerId)
+            ? { ...message, isRead: true }
+            : message,
+        ),
+      );
+
+      loadConversations();
+    };
+
+    const onPresence = ({ userId, online }) => {
+      setOnlineUsers((previous) =>
+        online
+          ? [...new Set([...previous, userId])]
+          : previous.filter((id) => id !== userId),
+      );
+    };
+
+    const onTyping = ({ userId }) => {
+      setTypingUsers((previous) => [...new Set([...previous, userId])]);
+    };
+
+    const onStopTyping = ({ userId }) => {
+      setTypingUsers((previous) => previous.filter((id) => id !== userId));
+    };
+
+    const onSocketError = (error) => {
+      console.error("Socket connection error:", error.message);
+    };
+
+    socket.on("connect", onConnect);
+    socket.on("message:new", onNewMessage);
+    socket.on("message:read", onRead);
+    socket.on("presence:update", onPresence);
+    socket.on("typing:start", onTyping);
+    socket.on("typing:stop", onStopTyping);
+    socket.on("connect_error", onSocketError);
+
+    if (socket.connected) onConnect();
+
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("message:new", onNewMessage);
+      socket.off("message:read", onRead);
+      socket.off("presence:update", onPresence);
+      socket.off("typing:start", onTyping);
+      socket.off("typing:stop", onStopTyping);
+      socket.off("connect_error", onSocketError);
+      socket.disconnect();
+    };
+  }, [me?._id]);
+
+  // ========================================
+  // SCROLL
+  // ========================================
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
+  }, [messages, selectedId]);
+
+  // ========================================
+  // SEND TEXT
+  // ========================================
+
+  const handleSend = async (event) => {
+    event.preventDefault();
+
+    if (!draft.trim() || !selectedId || sending) return;
+
+    const text = draft.trim();
+
+    setSending(true);
+
+    try {
+      await sendTextMessage(selectedId, text);
+      setDraft("");
+
+      socket.emit("typing:stop", { to: selectedId });
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to send message");
+    } finally {
+      setSending(false);
+    }
   };
 
+  // ========================================
+  // TYPING
+  // ========================================
+
+  const handleTyping = (value) => {
+    setDraft(value);
+
+    if (!selectedId) return;
+
+    socket.emit("typing:start", { to: selectedId });
+
+    clearTimeout(typingTimerRef.current);
+
+    typingTimerRef.current = setTimeout(() => {
+      socket.emit("typing:stop", { to: selectedId });
+    }, 1200);
+  };
+
+  useEffect(() => {
+    return () => clearTimeout(typingTimerRef.current);
+  }, []);
+
+  // ========================================
+  // FILES AND IMAGES
+  // ========================================
+
+  const uploadFile = async (file, type) => {
+    if (!file || !selectedId) return;
+
+    try {
+      setSending(true);
+      await sendAttachment(selectedId, file, type);
+      toast.success("Attachment sent");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Attachment failed");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // ========================================
+  // VOICE RECORDING
+  // ========================================
+
+  const stopRecordingTracks = () => {
+    audioStreamRef.current?.getTracks().forEach((track) => track.stop());
+    audioStreamRef.current = null;
+    clearInterval(recordingTimerRef.current);
+    recordingTimerRef.current = null;
+  };
+
+  const startRecording = async () => {
+    if (!selectedId || recording || sending) return;
+    if (!window.MediaRecorder || !navigator.mediaDevices?.getUserMedia) {
+      toast.error(
+        "Voice recording needs microphone support and HTTPS or localhost",
+      );
+      return;
+    }
+
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
+      audioStreamRef.current = stream;
+      recordingTargetRef.current = selectedId;
+
+      const mimeType = [
+        "audio/webm;codecs=opus",
+        "audio/mp4",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+      ].find((value) => MediaRecorder.isTypeSupported(value));
+
+      const recorder = new MediaRecorder(
+        stream,
+        mimeType ? { mimeType } : undefined,
+      );
+      const chunks = [];
+      recorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size > 0) chunks.push(event.data);
+      };
+
+      recorder.onerror = (event) => {
+        console.error("Recording error:", event);
+        toast.error("Voice recording failed");
+        stopRecordingTracks();
+        setRecording(false);
+      };
+
+      recorder.onstop = async () => {
+        stopRecordingTracks();
+        setRecording(false);
+        const actualMime = recorder.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(chunks, { type: actualMime });
+        if (!blob.size) {
+          toast.error("Recording was empty. Please try again.");
+          return;
+        }
+        const extension = actualMime.includes("mp4")
+          ? "m4a"
+          : actualMime.includes("ogg")
+            ? "ogg"
+            : "webm";
+        const file = new File([blob], `voice-${Date.now()}.${extension}`, {
+          type: actualMime,
+        });
+        try {
+          setSending(true);
+          // Use the user selected when recording started.
+          await sendAttachment(recordingTargetRef.current, file, "audio");
+          toast.success("Voice message sent");
+        } catch (error) {
+          console.error("Voice upload error:", error);
+          toast.error(
+            error.response?.data?.message || "Could not send voice message",
+          );
+        } finally {
+          setSending(false);
+          recorderRef.current = null;
+        }
+      };
+
+      recorder.start(250);
+      recordingStartRef.current = Date.now();
+      setRecordingSeconds(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds(
+          Math.floor((Date.now() - recordingStartRef.current) / 1000),
+        );
+      }, 500);
+      setRecording(true);
+    } catch (error) {
+      console.error("Microphone error:", error);
+      stream?.getTracks().forEach((track) => track.stop());
+      stopRecordingTracks();
+      toast.error("Microphone access failed. Check browser permissions.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (recorderRef.current?.state === "recording") {
+      recorderRef.current.requestData();
+      recorderRef.current.stop();
+    }
+    clearInterval(recordingTimerRef.current);
+    setRecording(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      clearInterval(recordingTimerRef.current);
+      if (recorderRef.current?.state === "recording") {
+        recorderRef.current.onstop = null;
+        recorderRef.current.stop();
+      }
+      audioStreamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  // ========================================
+  // FILTER CONVERSATIONS
+  // ========================================
+
+  const filtered = useMemo(
+    () =>
+      conversations.filter((item) =>
+        (item.user?.fullName || "")
+          .toLowerCase()
+          .includes(search.toLowerCase()),
+      ),
+    [conversations, search],
+  );
+
+  const formatTime = (date) =>
+    date
+      ? new Date(date).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "";
+
+  const renderMessageContent = (message) => {
+    const type = message.type || "text";
+    const url = fileUrl(message.attachment?.url);
+
+    if (type === "image" && url) {
+      return (
+        <a href={url} target="_blank" rel="noreferrer">
+          <img
+            src={url}
+            alt="Shared image"
+            className="max-h-64 max-w-full rounded-xl object-contain"
+          />
+        </a>
+      );
+    }
+
+    if (type === "audio" && url) {
+      return (
+        <div className="min-w-[210px] max-w-full">
+          <p className="mb-2 text-xs font-semibold">Voice message</p>
+          <audio
+            key={url}
+            src={url}
+            controls
+            preload="metadata"
+            playsInline
+            className="w-full max-w-[300px]"
+            onError={(event) => {
+              console.error(
+                "Audio playback failed:",
+                url,
+                event.currentTarget.error,
+              );
+            }}
+          />
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-1 block text-xs underline"
+          >
+            Open audio file
+          </a>
+        </div>
+      );
+    }
+
+    if (type === "file" && url) {
+      return (
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="break-all font-semibold underline"
+        >
+          {message.attachment?.name || "Open attachment"}
+        </a>
+      );
+    }
+
+    return (
+      <p className="whitespace-pre-wrap break-words text-sm">
+        {message.content}
+      </p>
+    );
+  };
+
+  // ========================================
+  // JSX
+  // ========================================
+
   return (
-    <div className="h-[calc(100dvh-80px)] min-h-0 overflow-hidden bg-slate-100 p-2 sm:p-3">
+    <div className="h-[calc(100dvh-80px)] min-h-0 bg-slate-100 p-2 sm:p-3">
+      <div className="grid h-full min-h-0 grid-cols-1 gap-3 lg:grid-cols-[300px_minmax(0,1fr)]">
+        {/* LEFT: REAL CONVERSATIONS */}
 
-      <div
-        className={`grid h-full min-h-0 gap-3 ${
-          showProfile
-            ? "grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[270px_minmax(0,1fr)_265px]"
-            : "grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)]"
-        }`}
-      >
+        <aside
+          className={`min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white ${
+            mobileChat ? "hidden lg:flex" : "flex"
+          }`}
+        >
+          <div className="border-b border-slate-100 p-4">
+            <h2 className="text-xl font-bold text-slate-900">Messages</h2>
 
-        {/* LEFT: CONVERSATIONS */}
+            <p className="mt-1 text-xs text-slate-500">
+              Chat with your accepted connections
+            </p>
 
-        <aside className="min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col">
-
-          {/* Conversation Header */}
-
-          <div className="shrink-0 p-4 pb-3">
-
-            <div className="flex items-center justify-between mb-4">
-
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">
-                  Messages
-                </h2>
-                <p className="text-xs text-slate-400 mt-1">
-                  Stay connected
-                </p>
-              </div>
-
-              <button
-                type="button"
-                className="w-10 h-10 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white flex items-center justify-center transition"
-                title="New message"
-              >
-                <FiEdit size={18} />
-              </button>
-
-            </div>
-
-            {/* Search */}
-
-            <div className="relative">
-
+            <div className="relative mt-4">
               <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
 
               <input
-                type="text"
-                placeholder="Search conversations..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full h-10 rounded-xl bg-slate-50 border border-slate-200 pl-10 pr-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search connections..."
+                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm outline-none focus:border-emerald-500"
               />
-
             </div>
-
-            {/* Filters */}
-
-            <div className="flex gap-2 mt-3">
-
-              {["All", "Unread", "Groups"].map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => setFilter(item)}
-                  className={`flex-1 px-2 py-2 rounded-full text-xs font-medium border transition ${
-                    filter === item
-                      ? "bg-emerald-700 text-white border-emerald-700"
-                      : "bg-white text-slate-600 border-slate-200 hover:bg-emerald-50"
-                  }`}
-                >
-                  {item}
-                  {item === "Unread" && (
-                    <span className="ml-1">
-                      ({conversations.filter((c) => c.unread > 0).length})
-                    </span>
-                  )}
-                </button>
-              ))}
-
-            </div>
-
           </div>
 
-          <div className="border-t border-slate-100" />
-
-          {/* Scrollable Conversation List */}
-
-          <div className="flex-1 min-h-0 overflow-y-auto">
-
-            {filteredConversations.length === 0 ? (
-              <div className="p-6 text-center text-sm text-slate-400">
-                No conversations found.
-              </div>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {loading ? (
+              <p className="p-5 text-sm text-slate-500">
+                Loading conversations...
+              </p>
+            ) : filtered.length === 0 ? (
+              <p className="p-5 text-sm text-slate-500">
+                No connected users found. Accept a connection request to start
+                chatting.
+              </p>
             ) : (
-              filteredConversations.map((conversation) => (
+              filtered.map((item) => {
+                const user = item.user;
+                const active = String(user._id) === String(selectedId);
 
-                <button
-                  key={conversation.id}
-                  type="button"
-                  onClick={() => selectConversation(conversation.id)}
-                  className={`w-full flex items-center gap-3 p-3 text-left border-b border-slate-100 transition ${
-                    activeId === conversation.id
-                      ? "bg-emerald-50 border-l-[3px] border-l-emerald-600"
-                      : "hover:bg-slate-50 border-l-[3px] border-l-transparent"
-                  }`}
-                >
+                return (
+                  <button
+                    key={user._id}
+                    onClick={() => {
+                      setSelectedId(user._id);
+                      setMobileChat(true);
+                    }}
+                    className={`flex w-full items-center gap-3 border-b border-slate-100 p-3 text-left ${
+                      active ? "bg-emerald-50" : "hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="relative">
+                      <Avatar user={user} />
 
-                  <Avatar conversation={conversation} size="md" />
-
-                  <div className="flex-1 min-w-0">
-
-                    <div className="flex items-center justify-between gap-1">
-
-                      <h3 className="text-sm font-semibold text-slate-900 truncate">
-                        {conversation.name}
-                      </h3>
-
-                      <span className="text-[10px] text-slate-400 shrink-0">
-                        {conversation.time}
-                      </span>
-
+                      {onlineUsers.includes(String(user._id)) && (
+                        <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
+                      )}
                     </div>
 
-                    <div className="flex items-center justify-between gap-2 mt-1">
-
-                      <p className="text-xs text-slate-500 truncate">
-                        {conversation.lastMessage}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-slate-900">
+                        {user.fullName}
                       </p>
 
-                      {conversation.unread > 0 && (
-                        <span className="min-w-5 h-5 px-1 rounded-full bg-pink-500 text-white text-[10px] font-bold flex items-center justify-center">
-                          {conversation.unread}
-                        </span>
-                      )}
-
+                      <p className="mt-1 truncate text-xs text-slate-500">
+                        {item.lastmessage?.content ||
+                          (item.lastmessage?.type
+                            ? `Sent ${item.lastmessage.type}`
+                            : "Start a conversation")}
+                      </p>
                     </div>
 
-                  </div>
-
-                </button>
-
-              ))
+                    {item.unread > 0 && (
+                      <span className="rounded-full bg-emerald-700 px-2 py-1 text-xs font-bold text-white">
+                        {item.unread}
+                      </span>
+                    )}
+                  </button>
+                );
+              })
             )}
-
           </div>
-
         </aside>
 
-        {/* CENTER: CHAT AREA */}
+        {/* CENTER: CHAT */}
 
-        <main className="min-w-0 min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col">
-
-          {activeConversation && (
+        <main
+          className={`min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white ${
+            mobileChat ? "flex" : "hidden lg:flex"
+          }`}
+        >
+          {!otherUser ? (
+            <div className="flex flex-1 flex-col items-center justify-center bg-gradient-to-b from-white to-emerald-50 px-6 text-center">
+              <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-3xl bg-emerald-100 text-emerald-700 shadow-sm">
+                <FiMessageCircle size={44} />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900">
+                Welcome to Educonnect Messages
+              </h2>
+              <p className="mt-3 max-w-sm text-sm leading-6 text-slate-500">
+                Stay in touch with your connections. Choose someone from your
+                conversations to start chatting, share voice notes, or make a
+                call.
+              </p>
+              <p className="mt-5 rounded-full bg-white px-4 py-2 text-xs font-medium text-emerald-700 shadow-sm">
+                Select a conversation on the left to begin
+              </p>
+            </div>
+          ) : (
             <>
+              {/* CHAT HEADER */}
 
-              {/* Fixed Chat Header */}
-
-              <header className="h-[72px] shrink-0 flex items-center justify-between px-4 sm:px-5 border-b border-slate-100">
-
-                <div className="flex items-center gap-3 min-w-0">
-
+              <header className="flex h-[72px] shrink-0 items-center justify-between border-b border-slate-100 px-3 sm:px-5">
+                <div className="flex min-w-0 items-center gap-3">
                   <button
-                    type="button"
-                    onClick={() => setActiveId(activeId)}
-                    className="lg:hidden text-slate-500"
+                    onClick={() => setMobileChat(false)}
+                    className="lg:hidden"
+                    title="Back"
                   >
                     <FiArrowLeft size={20} />
                   </button>
 
-                  <Avatar
-                    conversation={activeConversation}
-                    size="md"
-                  />
+                  <Avatar user={otherUser} />
 
                   <div className="min-w-0">
-
-                    <h2 className="font-bold text-slate-900 text-sm sm:text-base truncate">
-                      {activeConversation.name}
-                    </h2>
-
-                    <p className="text-xs text-emerald-600 mt-1">
-                      {activeConversation.online
-                        ? "Active now"
-                        : activeConversation.group
-                        ? activeConversation.role
-                        : "Offline"}
+                    <p className="truncate text-sm font-bold text-slate-900">
+                      {otherUser.fullName}
                     </p>
 
+                    <p className="text-xs text-emerald-600">
+                      {typingUsers.includes(String(otherUser._id))
+                        ? "Typing..."
+                        : onlineUsers.includes(String(otherUser._id))
+                          ? "Online"
+                          : "Offline"}
+                    </p>
                   </div>
-
                 </div>
 
-                <div className="flex items-center gap-1 sm:gap-2">
-
+                <div className="flex items-center gap-2">
                   <button
-                    type="button"
-                    title="Voice call"
-                    className="w-9 h-9 rounded-full bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 flex items-center justify-center"
+                    title="Audio call"
+                    onClick={() =>
+                      calls
+                        .startCall(otherUser._id, "audio")
+                        .catch(() => toast.error("Unable to start audio call"))
+                    }
+                    className="rounded-full p-2 text-slate-600 hover:bg-emerald-50"
                   >
-                    <FiPhone size={17} />
+                    <FiPhone size={19} />
                   </button>
 
                   <button
-                    type="button"
                     title="Video call"
-                    className="w-9 h-9 rounded-full bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 flex items-center justify-center"
+                    onClick={() =>
+                      calls
+                        .startCall(otherUser._id, "video")
+                        .catch(() => toast.error("Unable to start video call"))
+                    }
+                    className="rounded-full p-2 text-slate-600 hover:bg-emerald-50"
                   >
-                    <FiVideo size={18} />
+                    <FiVideo size={20} />
                   </button>
 
                   <button
-                    type="button"
-                    title="Profile information"
-                    onClick={() => setShowProfile(!showProfile)}
-                    className={`hidden xl:flex w-9 h-9 rounded-full items-center justify-center ${
-                      showProfile
-                        ? "bg-emerald-50 text-emerald-700"
-                        : "bg-slate-50 text-slate-600"
-                    }`}
+                    title="View profile"
+                    onClick={() =>
+                      navigate(`/educonnect/profile/${otherUser._id}`)
+                    }
+                    className="rounded-full p-2 text-slate-600 hover:bg-emerald-50"
                   >
-                    <FiInfo size={18} />
+                    <FiUser size={19} />
                   </button>
-
-                  <button
-                    type="button"
-                    title="More options"
-                    className="w-9 h-9 rounded-full bg-slate-50 hover:bg-emerald-50 text-slate-600 flex items-center justify-center"
-                  >
-                    <FiMoreVertical size={18} />
-                  </button>
-
                 </div>
-
               </header>
 
-              {/* Scrollable Messages Only */}
+              {/* MESSAGES */}
 
-              <section className="flex-1 min-h-0 overflow-y-auto bg-white px-3 sm:px-5 py-5">
-
-                <div className="flex justify-center mb-6">
-
-                  <span className="text-[11px] font-medium bg-slate-100 text-slate-500 px-4 py-2 rounded-full">
-                    Today
-                  </span>
-
-                </div>
-
-                <div className="space-y-5">
-
-                  {activeConversation.messages.map((msg) => {
-
-                    const isMine = msg.sender === "me";
+              <section className="min-h-0 flex-1 overflow-y-auto bg-[#fafcfb] px-3 py-5 sm:px-5">
+                <div className="space-y-3">
+                  {messages.map((message) => {
+                    const mine =
+                      String(message.sender?._id || message.sender) ===
+                      String(me?._id);
 
                     return (
-
                       <div
-                        key={msg.id}
-                        className={`flex items-end gap-2 ${
-                          isMine ? "justify-end" : "justify-start"
+                        key={message._id}
+                        className={`flex ${
+                          mine ? "justify-end" : "justify-start"
                         }`}
                       >
-
-                        {!isMine && (
-                          <Avatar
-                            conversation={activeConversation}
-                            size="sm"
-                          />
-                        )}
-
                         <div
-                          className={`max-w-[80%] sm:max-w-[70%] px-4 py-3 rounded-2xl ${
-                            isMine
-                              ? "bg-emerald-100 text-slate-900 rounded-br-sm"
-                              : "bg-slate-100 text-slate-800 rounded-bl-sm"
+                          className={`max-w-[85%] rounded-2xl px-4 py-3 sm:max-w-[70%] ${
+                            mine
+                              ? "rounded-br-sm bg-emerald-100"
+                              : "rounded-bl-sm bg-white shadow-sm"
                           }`}
                         >
+                          {renderMessageContent(message)}
 
-                          <p className="text-sm leading-6 break-words">
-                            {msg.text}
-                          </p>
+                          <div className="mt-2 flex items-center justify-end gap-1 text-[10px] text-slate-500">
+                            {formatTime(message.createdAt)}
 
-                          <div
-                            className={`flex items-center gap-1 justify-end mt-1 ${
-                              isMine
-                                ? "text-emerald-700"
-                                : "text-slate-400"
-                            }`}
-                          >
-
-                            <span className="text-[10px]">
-                              {msg.time}
-                            </span>
-
-                            {isMine && (
-                              msg.read ? (
-                                <FiCheckCircle size={12} />
+                            {mine &&
+                              (message.isRead ? (
+                                <FiCheckCircle className="text-emerald-700" />
                               ) : (
-                                <FiCheck size={12} />
-                              )
-                            )}
-
+                                <FiCheck />
+                              ))}
                           </div>
-
                         </div>
-
-                        {isMine && (
-                          <Avatar
-                            conversation={currentUser}
-                            size="sm"
-                          />
-                        )}
-
                       </div>
-
                     );
-
                   })}
 
-                  <div ref={messageEndRef} />
-
+                  <div ref={bottomRef} />
                 </div>
-
               </section>
 
-              {/* Fixed Message Input */}
+              {/* MESSAGE COMPOSER */}
 
-              <footer className="shrink-0 border-t border-slate-100 bg-white p-3 sm:p-4">
+              <footer className="shrink-0 border-t border-slate-100 bg-white p-3">
+                <form onSubmit={handleSend} className="flex items-center gap-2">
+                  <label
+                    title="Attach file"
+                    className="cursor-pointer text-slate-500 hover:text-emerald-700"
+                  >
+                    <FiPaperclip size={20} />
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,.txt"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        uploadFile(file, "file");
+                        event.target.value = "";
+                      }}
+                    />
+                  </label>
 
-                <form
-                  onSubmit={sendMessage}
-                  className="flex items-center gap-2"
-                >
+                  <label
+                    title="Send image"
+                    className="cursor-pointer text-slate-500 hover:text-emerald-700"
+                  >
+                    <FiImage size={20} />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        uploadFile(file, "image");
+                        event.target.value = "";
+                      }}
+                    />
+                  </label>
+
+                  <input
+                    value={draft}
+                    onChange={(event) => handleTyping(event.target.value)}
+                    placeholder="Type a message..."
+                    className="h-11 min-w-0 flex-1 rounded-full border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-emerald-500"
+                  />
 
                   <button
                     type="button"
-                    title="Emoji"
-                    className="hidden sm:flex w-9 h-9 items-center justify-center text-slate-500 hover:text-emerald-700"
+                    title={
+                      recording
+                        ? "Stop and send recording"
+                        : "Record voice message"
+                    }
+                    onClick={recording ? stopRecording : startRecording}
+                    disabled={sending}
+                    className={`rounded-full p-2 ${
+                      recording ? "bg-red-100 text-red-600" : "text-slate-500"
+                    }`}
                   >
-                    <FiSmile size={21} />
+                    {recording ? <FiSquare size={19} /> : <FiMic size={20} />}
                   </button>
 
-                  <div className="flex-1 min-w-0 flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-full px-4 h-12 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-50">
-
-                    <input
-                      type="text"
-                      placeholder="Type a message..."
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                      className="flex-1 min-w-0 bg-transparent outline-none text-sm text-slate-800 placeholder:text-slate-400"
-                    />
-
-                    <button
-                      type="button"
-                      title="Attach file"
-                      className="text-slate-400 hover:text-emerald-700"
-                    >
-                      <FiPaperclip size={19} />
-                    </button>
-
-                    <button
-                      type="button"
-                      title="Upload image"
-                      className="text-slate-400 hover:text-emerald-700"
-                    >
-                      <FiImage size={19} />
-                    </button>
-
-                  </div>
+                  {recording && (
+                    <span className="shrink-0 text-xs font-semibold text-red-600">
+                      REC {Math.floor(recordingSeconds / 60)}:
+                      {String(recordingSeconds % 60).padStart(2, "0")}
+                    </span>
+                  )}
 
                   <button
                     type="submit"
-                    disabled={!message.trim()}
-                    title="Send message"
-                    className="w-11 h-11 shrink-0 rounded-full bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white flex items-center justify-center transition"
+                    disabled={!draft.trim() || sending}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-white disabled:opacity-40"
                   >
                     <FiSend size={18} />
                   </button>
-
                 </form>
-
               </footer>
-
             </>
           )}
-
         </main>
-
-        {/* RIGHT: PROFILE INFORMATION */}
-
-        {showProfile && (
-          <aside className="hidden xl:flex min-h-0 flex-col gap-3 overflow-y-auto">
-
-            {/* Profile Card */}
-
-            <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-
-              <div className="p-5 flex flex-col items-center text-center">
-
-                <div className="mb-3">
-                  <Avatar
-                    conversation={activeConversation}
-                    size="xl"
-                  />
-                </div>
-
-                <h2 className="font-bold text-slate-900 text-lg">
-                  {activeConversation.name}
-                </h2>
-
-                <p className="text-xs text-slate-500 mt-1">
-                  {activeConversation.role}
-                </p>
-
-                <button
-                  type="button"
-                  className="w-full mt-4 h-10 rounded-xl border border-emerald-400 text-emerald-700 font-semibold text-sm hover:bg-emerald-50 transition"
-                >
-                  View Profile
-                </button>
-
-              </div>
-
-              {/* Shared Interests */}
-
-              <div className="border-t border-slate-100 p-4">
-
-                <h3 className="font-bold text-sm text-slate-900 mb-3">
-                  Shared Interests
-                </h3>
-
-                <div className="flex flex-wrap gap-2">
-
-                  {activeConversation.interests.map((interest) => (
-                    <span
-                      key={interest}
-                      className="px-3 py-2 rounded-full bg-slate-100 text-slate-600 text-xs"
-                    >
-                      {interest}
-                    </span>
-                  ))}
-
-                </div>
-
-              </div>
-
-              {/* Mutual Friends */}
-
-              <div className="border-t border-slate-100 p-4">
-
-                <div className="flex justify-between items-center mb-3">
-
-                  <h3 className="font-bold text-sm text-slate-900">
-                    Mutual Friends
-                  </h3>
-
-                  <span className="text-xs text-slate-400">
-                    {activeConversation.mutualFriends}
-                  </span>
-
-                </div>
-
-                <div className="flex items-center">
-
-                  {[11, 12, 13, 14].map((img) => (
-                    <img
-                      key={img}
-                      src={`https://i.pravatar.cc/100?img=${img}`}
-                      alt="Mutual friend"
-                      className="w-9 h-9 rounded-full border-2 border-white object-cover -ml-2 first:ml-0"
-                    />
-                  ))}
-
-                  <span className="w-9 h-9 rounded-full bg-slate-100 border-2 border-white -ml-2 flex items-center justify-center text-[10px] font-semibold text-slate-600">
-                    +{Math.max(activeConversation.mutualFriends - 4, 0)}
-                  </span>
-
-                </div>
-
-              </div>
-
-            </section>
-
-            {/* Quick Actions */}
-
-            <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-
-              <h3 className="font-bold text-sm text-slate-900 mb-3">
-                Quick Actions
-              </h3>
-
-              <button
-                type="button"
-                className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 text-left"
-              >
-                <span className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                  <FiUser size={17} />
-                </span>
-                <span className="text-sm text-slate-600">
-                  View Profile
-                </span>
-              </button>
-
-              <button
-                type="button"
-                className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 text-left"
-              >
-                <span className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
-                  <FiShield size={17} />
-                </span>
-                <span className="text-sm text-slate-600">
-                  Block User
-                </span>
-              </button>
-
-              <button
-                type="button"
-                className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-red-50 text-left"
-              >
-                <span className="w-9 h-9 rounded-xl bg-red-50 text-red-500 flex items-center justify-center">
-                  <FiX size={17} />
-                </span>
-                <span className="text-sm text-red-500">
-                  Report Conversation
-                </span>
-              </button>
-
-            </section>
-
-          </aside>
-        )}
-
       </div>
 
+      {/* INCOMING CALL */}
+
+      {calls.incoming && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center">
+            <FiPhone className="mx-auto text-emerald-700" size={32} />
+
+            <h2 className="mt-4 text-lg font-bold">
+              Incoming {calls.incoming.type} call
+            </h2>
+
+            <p className="mt-2 text-sm text-slate-500">
+              From a connected Educonnect member
+            </p>
+
+            <div className="mt-6 flex justify-center gap-4">
+              <button
+                onClick={calls.rejectCall}
+                className="rounded-xl bg-red-600 px-5 py-3 text-white"
+              >
+                Decline
+              </button>
+
+              <button
+                onClick={() =>
+                  calls
+                    .acceptCall()
+                    .catch(() => toast.error("Could not accept call"))
+                }
+                className="rounded-xl bg-emerald-700 px-5 py-3 text-white"
+              >
+                Accept
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ACTIVE CALL */}
+
+      {calls.call && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 p-4">
+          <div className="w-full max-w-3xl text-center text-white">
+            <h2 className="mb-4 text-xl font-bold">
+              {calls.call.type === "video" ? "Video Call" : "Voice Call"}
+            </h2>
+
+            <p className="mb-4 text-sm text-slate-300">{calls.call.status}</p>
+
+            <div className="relative min-h-56 overflow-hidden rounded-2xl bg-slate-900">
+              <video
+                ref={calls.remoteVideoRef}
+                autoPlay
+                playsInline
+                className="h-80 w-full object-contain"
+              />
+
+              <video
+                ref={calls.localVideoRef}
+                autoPlay
+                muted
+                playsInline
+                className="absolute bottom-3 right-3 h-28 w-36 rounded-xl bg-slate-800 object-cover"
+              />
+            </div>
+
+            <div className="mt-6 flex justify-center gap-4">
+              <button
+                onClick={calls.toggleMute}
+                className="rounded-full bg-slate-700 p-4"
+                title="Toggle microphone"
+              >
+                <FiVolumeX size={20} />
+              </button>
+
+              {calls.call.type === "video" && (
+                <button
+                  onClick={calls.toggleCamera}
+                  className="rounded-full bg-slate-700 p-4"
+                  title="Toggle camera"
+                >
+                  <FiVideoOff size={20} />
+                </button>
+              )}
+
+              <button
+                onClick={calls.endCall}
+                className="rounded-full bg-red-600 p-4"
+                title="End call"
+              >
+                <FiPhoneOff size={22} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,145 +1,283 @@
-const User = require("../models/usersModel");
-const Connection = require("../models/connectionModel");
-const Message = require("../models/messageModel");
 
+const jwt = require("jsonwebtoken");
+const cookie = require("cookie");
+const mongoose = require("mongoose");
+
+const Connection = require("../models/connectionModel");
+
+// userId -> number of connected browser tabs/devices
 const onlineUsers = new Map();
 
-const checkFriendShip = async (user1,user2)=>{
-    const connection = await Connection.find({
-        $or:[
-            {
-                sender:user1,
-                recevier:user2,
-                status:"accepted"
-            },
-            {
-                sender:user2,
-                recevier:user1,
-                status:"accepted"
-            }
-        ]
-    })
+// Check whether two users are accepted connections
+const checkFriendShip = async (user1, user2) => {
+  if (
+    !mongoose.isValidObjectId(user1) ||
+    !mongoose.isValidObjectId(user2)
+  ) {
+    return false;
+  }
 
-    return connection;
-}
+  const connection = await Connection.exists({
+    status: "accepted",
+    $or: [
+      {
+        sender: user1,
+        recevier: user2,
+      },
+      {
+        sender: user2,
+        recevier: user1,
+      },
+    ],
+  });
 
+  return Boolean(connection);
+};
 
-const socketConnection = (io)=>{
-    io.on("connection",(socket)=>{
-        console.log("user Connected",socket.id);
-        
-   
-//userOnline
+const socketConnection = (io) => {
+  // =========================================
+  // AUTHENTICATE SOCKET CONNECTION
+  // =========================================
 
-socket.on("user-online",(userId)=>{
-    onlineUsers.set(userId.toString(),socket.id);
-    console.log("User online:",userId);
-    io.emit("user-online",{
-        userId
-    })
-});
-
-// sending the realtime message
-
-socket.on("send-message",async(data)=>{
+  io.use((socket, next) => {
     try {
-        const {senderId,recevierId,content}=data;
-         
-        if(!content || content.trim()===""){
-            socket.emit("message-error",{
-                message:"Content cannot be the empty"
-            })
-            return
-        }
+      const cookies = cookie.parse(
+        socket.handshake.headers.cookie || ""
+      );
 
-        if(senderId.toString()===recevierId.toString()){
-            socket.emit("message-error",{
-                message:"You cannot send message to yourself"
-            })
-            return
-        }
+      // IMPORTANT:
+      // Match this cookie name with your login controller.
+      const token = cookies.token;
 
-        const areFriend = await checkFriendShip(senderId,recevierId);
-        if(!areFriend) {
-            socket.emit("message-error",{
-                message:"You are allowed to send message with your friend only"
-            })
-            return
-        }
+      if (!token) {
+        return next(
+          new Error("Authentication token missing")
+        );
+      }
 
-        const newMessage = await Message.create({
-            sender:senderId,
-            recevier:recevierId,
-            content:content.trim()
+      // IMPORTANT:
+      // Match this secret with authmiddleware.js.
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET_KEY
+      );
 
-        });
+      const userId = decoded.userId || decoded.id;
 
-        await newMessage.populate("sender","fullName email role profilepic")
-        .populate("recevier","fullName email role profilepic");
+      if (!mongoose.isValidObjectId(userId)) {
+        return next(new Error("Invalid user"));
+      }
 
-        //find the recevier socket
-        const receiversocketId = onlineUsers.get(recevierId.toString());
+      socket.userId = String(userId);
 
-        //Send to recevier
-
-        if(receiversocketId){
-            io.to(receiversocketId).emit("recevie-message",newMessage);
-        }
-
-        //send back  to sender
-
-        socket.emit("message-sent",newMessage);
-        console.log("message sent successfully")
+      next();
     } catch (error) {
-        console.log("Erro in sending the message",error)
+      console.error(
+        "Socket authentication error:",
+        error.message
+      );
 
-        socket.emit("message-error",{
-            message:"failed to sent the message"
-        })
-
-        
+      next(new Error("Unauthorized"));
     }
-})
+  });
 
-//For typing
+  // =========================================
+  // SOCKET CONNECTION
+  // =========================================
 
-socket.on("typing",async(data)=>{
-    
-        const{senderId,recevierId}=data;
+  io.on("connection", (socket) => {
+    const userId = socket.userId;
 
-        const receiversocketId = onlineUsers.get(recevierId.toString());
-        if(receiversocketId){
-            io.to(receiversocketId).emit("user-typing",{senderId})
+    console.log(
+      "User connected:",
+      userId,
+      socket.id
+    );
+
+    // Join the authenticated user's private room
+    socket.join(`user:${userId}`);
+
+    const previousCount =
+      onlineUsers.get(userId) || 0;
+
+    onlineUsers.set(userId, previousCount + 1);
+
+    // Broadcast presence only when first device connects
+    if (previousCount === 0) {
+      io.emit("presence:update", {
+        userId,
+        online: true,
+      });
+    }
+
+    // =========================================
+    // GET ONLINE USERS
+    // =========================================
+
+    socket.on("presence:get", (callback) => {
+      if (typeof callback === "function") {
+        callback([...onlineUsers.keys()]);
+      }
+    });
+
+    // =========================================
+    // TYPING INDICATOR
+    // =========================================
+
+    socket.on("typing:start", async (data = {}) => {
+      try {
+        const receiverId = data.to;
+
+        if (
+          !(await checkFriendShip(
+            userId,
+            receiverId
+          ))
+        ) {
+          return;
         }
-})
 
-// For stop Typing
+        io.to(`user:${receiverId}`).emit(
+          "typing:start",
+          { userId }
+        );
+      } catch (error) {
+        console.error("Typing error:", error);
+      }
+    });
 
-socket.on("stop-typing",async(data)=>{
-    const {senderId,recevierId}= data;
-    const receiversocketId = onlineUsers.get(recevierId.toString());
+    socket.on("typing:stop", async (data = {}) => {
+      try {
+        const receiverId = data.to;
 
-    if(receiversocketId){
-        io.to(receiversocketId).emit("user-stop-typing",{senderId})
-    }
-})
-
-//For disconnecting the user
-
-socket.on("disconnect",()=>{
-    console.log("User disconnected:",socket.id);
-    
-    for(const [userId,socketId] of onlineUsers.entries()){
-        if(socketId === socket.id){
-            onlineUsers.delete(userId);
-
-            io.emit("user-offline",{userId});
-            console.log("User-offline",userId);
-            break;
+        if (
+          !(await checkFriendShip(
+            userId,
+            receiverId
+          ))
+        ) {
+          return;
         }
-    }
-})
- })
-}
+
+        io.to(`user:${receiverId}`).emit(
+          "typing:stop",
+          { userId }
+        );
+      } catch (error) {
+        console.error("Stop typing error:", error);
+      }
+    });
+
+    // =========================================
+    // WEBRTC AUDIO / VIDEO SIGNALING
+    // =========================================
+
+    const forwardCallEvent = (eventName) => {
+      socket.on(eventName, async (data = {}) => {
+        try {
+          const receiverId = data.to;
+          const callId = data.callId;
+
+          if (
+            !receiverId ||
+            typeof callId !== "string" ||
+            callId.length > 128
+          ) {
+            return;
+          }
+
+          const areFriends =
+            await checkFriendShip(
+              userId,
+              receiverId
+            );
+
+          if (!areFriends) {
+            socket.emit("call:error", {
+              message:
+                "You can only call accepted connections",
+            });
+            return;
+          }
+
+          const payload = {
+            from: userId,
+            callId,
+          };
+
+          if (eventName === "call:offer") {
+            if (
+              !["audio", "video"].includes(data.type) ||
+              data.offer?.type !== "offer"
+            ) {
+              return;
+            }
+
+            payload.type = data.type;
+            payload.offer = data.offer;
+          }
+
+          if (eventName === "call:answer") {
+            if (data.answer?.type !== "answer") {
+              return;
+            }
+
+            payload.answer = data.answer;
+          }
+
+          if (eventName === "call:ice") {
+            if (!data.candidate) return;
+
+            payload.candidate = data.candidate;
+          }
+
+          io.to(`user:${receiverId}`).emit(
+            eventName,
+            payload
+          );
+        } catch (error) {
+          console.error(
+            `${eventName} error:`,
+            error
+          );
+        }
+      });
+    };
+
+    [
+      "call:offer",
+      "call:answer",
+      "call:ice",
+      "call:end",
+      "call:reject",
+    ].forEach(forwardCallEvent);
+
+    // =========================================
+    // DISCONNECT
+    // =========================================
+
+    socket.on("disconnect", () => {
+      const count =
+        onlineUsers.get(userId) || 1;
+
+      if (count <= 1) {
+        onlineUsers.delete(userId);
+
+        io.emit("presence:update", {
+          userId,
+          online: false,
+        });
+      } else {
+        onlineUsers.set(userId, count - 1);
+      }
+
+      console.log(
+        "User disconnected:",
+        userId,
+        socket.id
+      );
+    });
+  });
+};
 
 module.exports = socketConnection;

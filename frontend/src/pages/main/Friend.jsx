@@ -1,725 +1,635 @@
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
-import React, { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+
 import {
   FiUsers,
   FiSearch,
-  FiSliders,
-  FiMoreHorizontal,
+  FiArrowUpRight,
+  FiRefreshCw,
+  FiBriefcase,
+  FiMapPin,
+  FiUser,
   FiUserPlus,
   FiUserCheck,
-  FiArrowRight,
-  FiAward,
-  FiMonitor,
+  FiClock,
+  FiCheck,
   FiX,
+  FiMail,
 } from "react-icons/fi";
 
-const usersData = [
-  {
-    id: 1,
-    name: "Rohan Thapa",
-    role: "Computer Engineering Student",
-    category: "Student",
-    avatar: "https://i.pravatar.cc/150?img=12",
-    mutual: 12,
-    online: true,
-  },
-  {
-    id: 2,
-    name: "Anjali Sharma",
-    role: "BSc CSIT Student",
-    category: "Student",
-    avatar: "https://i.pravatar.cc/150?img=47",
-    mutual: 8,
-    online: true,
-  },
-  {
-    id: 3,
-    name: "Dipesh Chaudhary",
-    role: "AI Enthusiast",
-    category: "Student",
-    avatar: "https://i.pravatar.cc/150?img=13",
-    mutual: 15,
-    online: true,
-  },
-  {
-    id: 4,
-    name: "Sita Bhandari",
-    role: "Software Developer",
-    category: "Professional",
-    avatar: "https://i.pravatar.cc/150?img=44",
-    mutual: 20,
-    online: true,
-  },
-  {
-    id: 5,
-    name: "Kiran Adhikari",
-    role: "Data Science Student",
-    category: "Student",
-    avatar: "https://i.pravatar.cc/150?img=11",
-    mutual: 10,
-    online: true,
-  },
-  {
-    id: 6,
-    name: "Maya Gurung",
-    role: "BCA Student",
-    category: "Student",
-    avatar: "https://i.pravatar.cc/150?img=45",
-    mutual: 7,
-    online: true,
-  },
-  {
-    id: 7,
-    name: "Suman Pokharel",
-    role: "Full Stack Developer",
-    category: "Professional",
-    avatar: "https://i.pravatar.cc/150?img=14",
-    mutual: 14,
-    online: false,
-  },
-  {
-    id: 8,
-    name: "Nisha Lamichhane",
-    role: "UI/UX Designer",
-    category: "Professional",
-    avatar: "https://i.pravatar.cc/150?img=48",
-    mutual: 11,
-    online: true,
-  },
-  {
-    id: 9,
-    name: "Aarav Joshi",
-    role: "Software Engineering Student",
-    category: "Student",
-    avatar: "https://i.pravatar.cc/150?img=15",
-    mutual: 6,
-    online: false,
-  },
-  {
-    id: 10,
-    name: "Pratik Karki",
-    role: "Engineering Mentor",
-    category: "Mentor",
-    avatar: "https://i.pravatar.cc/150?img=60",
-    mutual: 18,
-    online: true,
-  },
-  {
-    id: 11,
-    name: "Samiksha Rai",
-    role: "Frontend Developer",
-    category: "Professional",
-    avatar: "https://i.pravatar.cc/150?img=49",
-    mutual: 9,
-    online: true,
-  },
-  {
-    id: 12,
-    name: "Nabin Shah",
-    role: "Career Mentor",
-    category: "Mentor",
-    avatar: "https://i.pravatar.cc/150?img=68",
-    mutual: 5,
-    online: false,
-  },
-];
+import { AuthContext } from "../../context/authContext";
 
-const trendingCommunities = [
-  {
-    name: "AI & Machine Learning",
-    members: "24.5k members",
-    image:
-      "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=150",
-  },
-  {
-    name: "Web Development",
-    members: "32.1k members",
-    image:
-      "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=150",
-  },
-];
+import {
+  getCommunityUsers,
+  sendFriendRequest,
+  acceptFriendRequest,
+  rejectFriendRequest,
+} from "../../services/connectionServices";
 
-const filters = [
-  "All People",
-  "Students",
-  "Professionals",
-  "Mentors",
-];
+// ============================================
+// FILTERS
+// ============================================
 
-const Community = () => {
-  const [activeFilter, setActiveFilter] = useState("All People");
-  const [search, setSearch] = useState("");
-  const [sentRequests, setSentRequests] = useState([]);
-  const [joinedCommunities, setJoinedCommunities] = useState([]);
-  const [showFilters, setShowFilters] = useState(false);
-  const [onlineOnly, setOnlineOnly] = useState(false);
-  const [showBanner, setShowBanner] = useState(true);
+const filters = ["All People", "Students", "Professionals", "Mentors"];
 
-  // Search and filter users
-  const filteredUsers = useMemo(() => {
-    return usersData.filter((user) => {
-      const matchesFilter =
-        activeFilter === "All People" ||
-        user.category === activeFilter.slice(0, -1);
+const getCategory = (role = "") => {
+  const value = String(role).toLowerCase();
 
-      const matchesSearch =
-        user.name.toLowerCase().includes(search.toLowerCase()) ||
-        user.role.toLowerCase().includes(search.toLowerCase());
+  if (value.includes("student")) return "Student";
+  if (value.includes("mentor")) return "Mentor";
+  if (value.includes("professional")) return "Professional";
 
-      const matchesOnline = !onlineOnly || user.online;
+  return "Other";
+};
 
-      return matchesFilter && matchesSearch && matchesOnline;
-    });
-  }, [activeFilter, search, onlineOnly]);
+// ============================================
+// USER PROFILE PICTURE
+// Uses the actual user's profilepic
+// returned by the backend.
+// ============================================
 
-  // Send friend request
-  const sendRequest = (userId) => {
-    setSentRequests((prev) => [...prev, userId]);
+const UserAvatar = ({ user }) => {
+  const [imageError, setImageError] = useState(false);
 
-    // Connect your friend request API here.
-  };
+  useEffect(() => {
+    setImageError(false);
+  }, [user.profilepic]);
 
-  // Join or leave community
-  const toggleCommunity = (name) => {
-    setJoinedCommunities((prev) =>
-      prev.includes(name)
-        ? prev.filter((item) => item !== name)
-        : [...prev, name]
+  const name = user.fullName || "Educonnect User";
+
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+
+  if (user.profilepic && !imageError) {
+    return (
+      <img
+        src={user.profilepic}
+        alt={name}
+        onError={() => setImageError(true)}
+        className="h-16 w-16 rounded-2xl border-2 border-white bg-slate-100 object-cover shadow-sm"
+      />
     );
-  };
+  }
 
   return (
-    <div className="h-[calc(100vh-80px)] overflow-hidden bg-[#f4f6f9]">
-
-      <div className="mx-auto grid h-full max-w-[1650px] grid-cols-1 gap-3 px-3 py-3 sm:px-4 lg:grid-cols-[minmax(0,1fr)_290px] xl:grid-cols-[minmax(0,1fr)_320px]">
-
-        {/* ================================
-             CENTER COMMUNITY SECTION
-        ================================= */}
-
-        <main className="community-scroll min-h-0 min-w-0 overflow-y-auto pr-1">
-
-          {/* COMMUNITY HEADER */}
-
-          <section className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
-
-            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-
-              <div className="flex items-center gap-3">
-
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                  <FiUsers size={24} />
-                </div>
-
-                <div>
-                  <h1 className="text-xl font-bold text-slate-900">
-                    My Community
-                  </h1>
-
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    Connect with students, professionals and mentors
-                  </p>
-                </div>
-
-              </div>
-
-              <div className="flex w-full items-center gap-2 sm:w-auto">
-
-                <div className="relative min-w-0 flex-1 sm:w-[240px]">
-
-                  <FiSearch
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-                    size={16}
-                  />
-
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search people..."
-                    className="w-full rounded-full border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-xs outline-none transition focus:border-emerald-500 focus:bg-white"
-                  />
-
-                </div>
-
-                <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  className={`rounded-full border p-2.5 transition ${
-                    showFilters
-                      ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                      : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                  }`}
-                  title="Filters"
-                >
-                  <FiSliders size={18} />
-                </button>
-
-              </div>
-
-            </div>
-
-            {/* CATEGORY FILTERS */}
-
-            <div className="flex gap-6 overflow-x-auto border-t border-slate-100 px-4">
-
-              {filters.map((filter) => (
-                <button
-                  key={filter}
-                  onClick={() => setActiveFilter(filter)}
-                  className={`relative shrink-0 py-3 text-xs font-semibold transition ${
-                    activeFilter === filter
-                      ? "text-emerald-700"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  {filter}
-
-                  {activeFilter === filter && (
-                    <span className="absolute bottom-0 left-0 h-[3px] w-full rounded-full bg-emerald-600" />
-                  )}
-
-                </button>
-              ))}
-
-            </div>
-
-          </section>
-
-          {/* ADVANCED FILTER */}
-
-          {showFilters && (
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-white p-3 shadow-sm">
-
-              <div>
-                <p className="text-xs font-semibold text-slate-800">
-                  Filter people
-                </p>
-
-                <p className="mt-0.5 text-[11px] text-slate-500">
-                  Show people who are currently online
-                </p>
-              </div>
-
-              <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={onlineOnly}
-                  onChange={(e) => setOnlineOnly(e.target.checked)}
-                  className="accent-emerald-600"
-                />
-                Online now
-              </label>
-
-            </div>
-          )}
-
-          {/* NETWORK BANNER */}
-
-          {showBanner && (
-            <section className="relative mt-3 flex min-h-[85px] flex-wrap items-center justify-between gap-3 overflow-hidden rounded-xl border border-emerald-100 bg-gradient-to-r from-emerald-50 via-cyan-50 to-teal-50 px-4 py-3">
-
-              <button
-                onClick={() => setShowBanner(false)}
-                className="absolute right-2 top-2 rounded-full p-1 text-slate-500 hover:bg-white"
-              >
-                <FiX size={15} />
-              </button>
-
-              <div className="flex min-w-0 items-center gap-4">
-
-                <div className="hidden h-14 w-16 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 sm:flex">
-                  <FiUsers size={32} />
-                </div>
-
-                <div>
-                  <h2 className="text-base font-bold text-slate-900">
-                    Grow Your Network
-                  </h2>
-
-                  <p className="mt-0.5 max-w-md text-[11px] text-slate-600">
-                    Connect, learn and grow together in the Educonnect community.
-                  </p>
-                </div>
-
-              </div>
-
-              <button
-                onClick={() => {
-                  setActiveFilter("All People");
-                  setSearch("");
-                }}
-                className="flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-[11px] font-bold text-white transition hover:bg-emerald-800"
-              >
-                Explore People <FiArrowRight size={14} />
-              </button>
-
-            </section>
-          )}
-
-          {/* PEOPLE HEADER */}
-
-          <div className="mb-3 mt-4 flex items-center justify-between gap-2">
-
-            <div>
-              <h2 className="text-sm font-bold text-slate-800">
-                People you may know
-              </h2>
-
-              <p className="mt-0.5 text-[11px] text-slate-500">
-                {filteredUsers.length} people found
-              </p>
-            </div>
-
-            <select className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-600 outline-none">
-              <option>Recommended</option>
-              <option>Recently Joined</option>
-              <option>Most Mutual Friends</option>
-            </select>
-
-          </div>
-
-          {/* USER CARDS */}
-
-          {filteredUsers.length > 0 ? (
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-
-              {filteredUsers.map((user) => {
-                const requestSent = sentRequests.includes(user.id);
-
-                return (
-                  <article
-                    key={user.id}
-                    className="group relative flex min-w-0 flex-col items-center rounded-xl border border-slate-100 bg-white px-3 pb-3 pt-3 text-center shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-emerald-100 hover:shadow-md"
-                  >
-
-                    {/* MORE OPTIONS */}
-
-                    <button
-                      className="absolute right-2 top-2 rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                      title="More options"
-                    >
-                      <FiMoreHorizontal size={18} />
-                    </button>
-
-                    {/* PROFILE IMAGE */}
-
-                    <div className="relative">
-
-                      <img
-                        src={user.avatar}
-                        alt={user.name}
-                        className="h-16 w-16 rounded-full border-2 border-white object-cover shadow-sm"
-                      />
-
-                      <span
-                        className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white ${
-                          user.online
-                            ? "bg-emerald-500"
-                            : "bg-slate-300"
-                        }`}
-                      />
-
-                    </div>
-
-                    {/* USER DETAILS */}
-
-                    <h3 className="mt-2 max-w-full truncate text-xs font-bold text-slate-900">
-                      {user.name}
-                    </h3>
-
-                    <p className="mt-0.5 min-h-4 w-full truncate text-[11px] text-slate-500">
-                      {user.role}
-                    </p>
-
-                    <span className="mt-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-semibold text-emerald-700">
-                      {user.category}
-                    </span>
-
-                    {/* MUTUAL FRIENDS */}
-
-                    <div className="mt-2 flex items-center gap-1.5 text-[10px] text-slate-500">
-                      <FiUsers size={13} />
-                      {user.mutual} mutual friends
-                    </div>
-
-                    {/* ACTION BUTTONS */}
-
-                    <div className="mt-3 grid w-full grid-cols-2 gap-1.5">
-
-                      <button
-                        onClick={() => sendRequest(user.id)}
-                        disabled={requestSent}
-                        className={`flex items-center justify-center gap-1 rounded-md px-1 py-2 text-[10px] font-semibold transition ${
-                          requestSent
-                            ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : "bg-emerald-700 text-white hover:bg-emerald-800"
-                        }`}
-                      >
-                        {requestSent ? (
-                          <>
-                            <FiUserCheck size={12} />
-                            Sent
-                          </>
-                        ) : (
-                          <>
-                            Send Request
-                            <FiUserPlus size={12} />
-                          </>
-                        )}
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          window.location.href = `/profile/${user.id}`;
-                        }}
-                        className="rounded-md border border-emerald-200 px-1 py-2 text-[10px] font-semibold text-emerald-800 transition hover:bg-emerald-50"
-                      >
-                        View Profile
-                      </button>
-
-                    </div>
-
-                  </article>
-                );
-              })}
-
-            </div>
-
-          ) : (
-
-            <div className="rounded-xl border border-slate-100 bg-white py-14 text-center">
-
-              <FiUsers className="mx-auto text-3xl text-slate-300" />
-
-              <h3 className="mt-3 text-sm font-bold text-slate-800">
-                No people found
-              </h3>
-
-              <p className="mt-1 text-xs text-slate-500">
-                Try searching with a different name or category.
-              </p>
-
-              <button
-                onClick={() => {
-                  setSearch("");
-                  setActiveFilter("All People");
-                  setOnlineOnly(false);
-                }}
-                className="mt-3 text-xs font-semibold text-emerald-700"
-              >
-                Clear filters
-              </button>
-
-            </div>
-
-          )}
-
-          <div className="py-5 text-center text-[11px] text-slate-400">
-            You're growing your Educonnect network 🌱
-          </div>
-
-        </main>
-
-        {/* ================================
-             RIGHT SIDEBAR - FIXED
-        ================================= */}
-
-        <aside className="hidden h-full min-h-0 flex-col gap-3 overflow-hidden lg:flex">
-
-          {/* LEARNING BANNER */}
-
-          <section className="relative shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-emerald-950 via-emerald-800 to-teal-700 p-5 text-white shadow-sm">
-
-            <div className="absolute -right-10 -top-10 h-36 w-36 rounded-full border-[25px] border-white/5" />
-
-            <FiAward className="relative mb-3 text-3xl text-yellow-300" />
-
-            <h2 className="relative text-lg font-bold leading-6">
-              Keep Learning,
-              <br />
-              Keep Growing!
-            </h2>
-
-            <p className="relative mt-2 text-[11px] leading-5 text-emerald-50">
-              Be the best version of yourself with Educonnect.
-            </p>
-
-            <button
-              onClick={() => {
-                window.location.href = "/studymaterials";
-              }}
-              className="relative mt-3 flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-[11px] font-bold text-emerald-800 transition hover:bg-emerald-50"
-            >
-              Explore Resources <FiArrowRight size={14} />
-            </button>
-
-          </section>
-
-          {/* FIND FRIENDS */}
-
-          <section className="shrink-0 rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-
-            <div className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-3">
-
-              <FiSearch className="text-lg text-emerald-700" />
-
-              <h3 className="text-sm font-bold text-slate-900">
-                Find Friends
-              </h3>
-
-            </div>
-
-            <div className="space-y-1">
-
-              {[
-                {
-                  icon: FiUsers,
-                  label: "People You May Know",
-                  filter: "All People",
-                },
-                {
-                  icon: FiAward,
-                  label: "From Your College",
-                  filter: "Students",
-                },
-                {
-                  icon: FiMonitor,
-                  label: "In Your Field",
-                  filter: "Professionals",
-                },
-                {
-                  icon: FiUserPlus,
-                  label: "Mentors",
-                  filter: "Mentors",
-                },
-              ].map((item) => {
-                const Icon = item.icon;
-
-                return (
-                  <button
-                    key={item.label}
-                    onClick={() => {
-                      setActiveFilter(item.filter);
-                      setSearch("");
-                      setOnlineOnly(false);
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-lg p-2 text-left transition hover:bg-emerald-50"
-                  >
-
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                      <Icon size={17} />
-                    </span>
-
-                    <span className="text-[11px] font-semibold text-slate-700">
-                      {item.label}
-                    </span>
-
-                  </button>
-                );
-              })}
-
-            </div>
-
-          </section>
-
-          {/* TRENDING COMMUNITIES */}
-
-          <section className="shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
-
-            <div className="flex items-center justify-between px-4 pb-3 pt-4">
-
-              <h3 className="flex items-center gap-2 text-xs font-bold text-slate-900">
-                <span className="text-base">🔥</span>
-                Trending Communities
-              </h3>
-
-              <button className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700">
-                See all <FiArrowRight size={12} />
-              </button>
-
-            </div>
-
-            {trendingCommunities.map((community) => {
-              const joined = joinedCommunities.includes(community.name);
-
-              return (
-                <div
-                  key={community.name}
-                  className="flex items-center gap-2.5 border-t border-slate-100 px-3 py-2.5"
-                >
-
-                  <img
-                    src={community.image}
-                    alt={community.name}
-                    className="h-10 w-10 shrink-0 rounded-lg object-cover"
-                  />
-
-                  <div className="min-w-0 flex-1">
-
-                    <h4 className="truncate text-[11px] font-bold text-slate-800">
-                      {community.name}
-                    </h4>
-
-                    <p className="mt-0.5 text-[10px] text-slate-400">
-                      {community.members}
-                    </p>
-
-                  </div>
-
-                  <button
-                    onClick={() => toggleCommunity(community.name)}
-                    className={`rounded-md px-2.5 py-1.5 text-[10px] font-bold transition ${
-                      joined
-                        ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "bg-emerald-700 text-white hover:bg-emerald-800"
-                    }`}
-                  >
-                    {joined ? "Joined" : "Join"}
-                  </button>
-
-                </div>
-              );
-            })}
-
-          </section>
-
-          {/* FOOTER */}
-
-          <div className="mt-auto px-2 pb-2 text-center text-[10px] leading-5 text-slate-400">
-            About · Privacy · Terms · Help Center
-            <br />
-            © 2026 Educonnect
-          </div>
-
-        </aside>
-
-      </div>
-
-      {/* SCROLLBAR STYLING */}
-
-      <style>{`
-        .community-scroll {
-          scrollbar-width: thin;
-          scrollbar-color: #cbd5e1 transparent;
-        }
-
-        .community-scroll::-webkit-scrollbar {
-          width: 5px;
-        }
-
-        .community-scroll::-webkit-scrollbar-thumb {
-          background: #cbd5e1;
-          border-radius: 20px;
-        }
-
-        .community-scroll::-webkit-scrollbar-track {
-          background: transparent;
-        }
-      `}</style>
-
+    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 text-xl font-bold text-emerald-700">
+      {initials || "U"}
     </div>
   );
 };
 
-export default Community;
+// ============================================
+// LOADING SKELETON
+// ============================================
+
+const LoadingCards = () => (
+  <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    {Array.from({ length: 6 }, (_, index) => (
+      <div
+        key={index}
+        className="animate-pulse rounded-2xl border border-slate-200 bg-white p-5"
+      >
+        <div className="mb-5 h-16 w-16 rounded-2xl bg-slate-100" />
+
+        <div className="mb-3 h-4 w-3/4 rounded bg-slate-100" />
+
+        <div className="mb-5 h-3 w-1/2 rounded bg-slate-100" />
+
+        <div className="mb-3 h-10 rounded-xl bg-slate-100" />
+
+        <div className="h-10 rounded-xl bg-slate-100" />
+      </div>
+    ))}
+  </div>
+);
+
+// ============================================
+// FRIEND / CONNECTION PAGE
+// ============================================
+
+const Friend = () => {
+  const navigate = useNavigate();
+
+  const { users: loggedInUser, authLoading } = useContext(AuthContext);
+
+  const [people, setPeople] = useState([]);
+
+  const [search, setSearch] = useState("");
+  const [activeFilter, setActiveFilter] = useState("All People");
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const [processingIds, setProcessingIds] = useState([]);
+
+  // Prevent overlapping connection actions for the same user.
+  const processingRef = useRef(new Set());
+
+  // Ignore stale fetch results when multiple refreshes overlap.
+  const fetchVersionRef = useRef(0);
+
+  // ============================================
+  // FETCH REGISTERED USERS FROM MONGODB
+  // ============================================
+
+  const fetchPeople = useCallback(async (refresh = false) => {
+    const fetchVersion = ++fetchVersionRef.current;
+
+    try {
+      if (refresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      const response = await getCommunityUsers();
+
+      if (fetchVersion !== fetchVersionRef.current) return;
+
+      const registeredUsers = response.data.users;
+
+      setPeople(Array.isArray(registeredUsers) ? registeredUsers : []);
+    } catch (error) {
+      if (fetchVersion !== fetchVersionRef.current) return;
+
+      console.error("Get community users error:", error);
+
+      toast.error(
+        error.response?.data?.message || "Failed to load registered users",
+      );
+    } finally {
+      if (fetchVersion === fetchVersionRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (loggedInUser?._id) {
+      fetchPeople();
+    } else {
+      setPeople([]);
+      setLoading(false);
+    }
+
+    return () => {
+      fetchVersionRef.current += 1;
+    };
+  }, [authLoading, loggedInUser?._id, fetchPeople]);
+
+  // ============================================
+  // PROCESSING HELPERS
+  // ============================================
+
+  const startProcessing = (userId) => {
+    const id = String(userId);
+
+    if (processingRef.current.has(id)) {
+      return false;
+    }
+
+    processingRef.current.add(id);
+
+    setProcessingIds((previous) => [...previous, id]);
+
+    return true;
+  };
+
+  const stopProcessing = (userId) => {
+    const id = String(userId);
+
+    processingRef.current.delete(id);
+
+    setProcessingIds((previous) => previous.filter((item) => item !== id));
+  };
+
+  const isProcessing = (userId) => processingIds.includes(String(userId));
+
+  // ============================================
+  // UPDATE A USER'S CONNECTION STATUS
+  // ============================================
+
+  const updateUserStatus = (userId, connectionStatus, connectionId = null) => {
+    setPeople((previous) =>
+      previous.map((person) =>
+        String(person._id) === String(userId)
+          ? {
+              ...person,
+              connectionStatus,
+              connectionId,
+            }
+          : person,
+      ),
+    );
+  };
+
+  // ============================================
+  // SEND FRIEND REQUEST
+  // POST /connections/sendrequest/:userId
+  // ============================================
+
+  const handleSendRequest = async (userId) => {
+    if (!startProcessing(userId)) return;
+
+    try {
+      const response = await sendFriendRequest(userId);
+
+      updateUserStatus(userId, "sent", response.data.connection?._id || null);
+
+      toast.success(
+        response.data.message || "Friend request sent successfully",
+      );
+    } catch (error) {
+      console.error("Send request error:", error);
+
+      toast.error(
+        error.response?.data?.message || "Failed to send friend request",
+      );
+
+      // Sync the card with MongoDB in case another
+      // request already exists.
+      await fetchPeople(true);
+    } finally {
+      stopProcessing(userId);
+    }
+  };
+
+  // ============================================
+  // ACCEPT FRIEND REQUEST
+  // PUT /connections/acceptrequest/:requestId
+  // ============================================
+
+  const handleAcceptRequest = async (userId, requestId) => {
+    if (!requestId || !startProcessing(userId)) return;
+
+    try {
+      const response = await acceptFriendRequest(requestId);
+
+      updateUserStatus(
+        userId,
+        "friends",
+        response.data.connection?._id || requestId,
+      );
+
+      toast.success(response.data.message || "Friend request accepted");
+    } catch (error) {
+      console.error("Accept request error:", error);
+
+      toast.error(error.response?.data?.message || "Failed to accept request");
+
+      await fetchPeople(true);
+    } finally {
+      stopProcessing(userId);
+    }
+  };
+
+  // ============================================
+  // REJECT FRIEND REQUEST
+  // PUT /connections/rejectrequest/:requestId
+  // ============================================
+
+  const handleRejectRequest = async (userId, requestId) => {
+    if (!requestId || !startProcessing(userId)) return;
+
+    try {
+      const response = await rejectFriendRequest(requestId);
+
+      updateUserStatus(userId, "none", null);
+
+      toast.success(response.data.message || "Friend request rejected");
+    } catch (error) {
+      console.error("Reject request error:", error);
+
+      toast.error(error.response?.data?.message || "Failed to reject request");
+
+      await fetchPeople(true);
+    } finally {
+      stopProcessing(userId);
+    }
+  };
+
+  // ============================================
+  // SEARCH + FILTER
+  // ============================================
+
+  const filteredPeople = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+
+    const categoryMap = {
+      Students: "Student",
+      Professionals: "Professional",
+      Mentors: "Mentor",
+    };
+
+    return people.filter((person) => {
+      // Exclude the logged-in user.
+      if (
+        loggedInUser?._id &&
+        String(person._id) === String(loggedInUser._id)
+      ) {
+        return false;
+      }
+
+      const searchableText = [
+        person.fullName,
+        person.role,
+        person.email,
+        person.location,
+        person.jobTitle,
+        person.program,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const matchesSearch = searchableText.includes(keyword);
+
+      const matchesFilter =
+        activeFilter === "All People" ||
+        getCategory(person.role) === categoryMap[activeFilter];
+
+      return matchesSearch && matchesFilter;
+    });
+  }, [people, search, activeFilter, loggedInUser?._id]);
+
+  // ============================================
+  // RENDER CONNECTION ACTIONS
+  // ============================================
+
+  const renderConnectionAction = (person) => {
+    const status = person.connectionStatus || "none";
+
+    const busy = isProcessing(person._id);
+
+    // Already connected
+    if (status === "friends") {
+      return (
+        <button
+          type="button"
+          onClick={() => navigate(`/educonnect/message?userId=${person._id}`)}
+          className="flex h-11 w-full items-center justify-center rounded-xl bg-emerald-700 text-sm font-semibold text-white hover:bg-emerald-800"
+        >
+          Message
+        </button>
+      );
+    }
+
+    // Request sent by logged-in user
+    if (status === "sent") {
+      return (
+        <button
+          type="button"
+          disabled
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 text-sm font-semibold text-amber-700"
+        >
+          <FiClock size={16} />
+          Request Sent
+        </button>
+      );
+    }
+
+    // Incoming friend request
+    if (status === "received") {
+      return (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            disabled={busy || !person.connectionId}
+            onClick={() => handleAcceptRequest(person._id, person.connectionId)}
+            className="flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-700 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+          >
+            {busy ? <FiRefreshCw className="animate-spin" /> : <FiCheck />}
+            Accept
+          </button>
+
+          <button
+            type="button"
+            disabled={busy || !person.connectionId}
+            onClick={() => handleRejectRequest(person._id, person.connectionId)}
+            className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          >
+            <FiX />
+            Reject
+          </button>
+        </div>
+      );
+    }
+
+    // No existing connection
+    return (
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => handleSendRequest(person._id)}
+        className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+      >
+        {busy ? (
+          <FiRefreshCw size={16} className="animate-spin" />
+        ) : (
+          <FiUserPlus size={16} />
+        )}
+
+        {busy ? "Sending..." : "Send Request"}
+      </button>
+    );
+  };
+
+  // ============================================
+  // JSX
+  // ============================================
+
+  return (
+    <div className="min-h-screen bg-[#f7f9f8]">
+      <div className="mx-auto max-w-[1350px] px-4 py-8 sm:px-6 lg:px-8">
+        {/* PAGE HEADER */}
+
+        <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-emerald-700">
+              Educonnect Network
+            </p>
+
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+              Connect With People
+            </h1>
+
+            <p className="mt-2 text-sm text-slate-500">
+              Discover registered students, professionals, and mentors. Send
+              requests and build your network.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => fetchPeople(true)}
+            disabled={refreshing || loading}
+            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+          >
+            <FiRefreshCw
+              size={16}
+              className={refreshing ? "animate-spin" : ""}
+            />
+            Refresh
+          </button>
+        </header>
+
+        {/* SEARCH AND FILTER */}
+
+        <section className="mb-7 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="relative">
+            <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+
+            <input
+              type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by name, role or email..."
+              className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm outline-none transition focus:border-emerald-500 focus:bg-white"
+            />
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {filters.map((filter) => (
+              <button
+                type="button"
+                key={filter}
+                onClick={() => setActiveFilter(filter)}
+                className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${
+                  activeFilter === filter
+                    ? "bg-emerald-700 text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {filter}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* PEOPLE COUNT */}
+
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">
+              Registered People
+            </h2>
+
+            <p className="mt-1 text-xs text-slate-500">
+              {loading
+                ? "Loading registered users..."
+                : `${filteredPeople.length} people found`}
+            </p>
+          </div>
+
+          <FiUsers size={22} className="text-emerald-700" />
+        </div>
+
+        {/* PEOPLE CARDS */}
+
+        {loading || authLoading ? (
+          <LoadingCards />
+        ) : filteredPeople.length === 0 ? (
+          <div className="flex min-h-72 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white px-5 text-center">
+            <FiUser size={32} className="text-slate-400" />
+
+            <h3 className="mt-4 font-semibold text-slate-900">
+              No registered people found
+            </h3>
+
+            <p className="mt-2 text-sm text-slate-500">
+              Try another search or category filter.
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredPeople.map((person) => (
+              <article
+                key={person._id}
+                className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-md"
+              >
+                {/* REAL REGISTERED USER PICTURE */}
+
+                <div className="mb-5 flex items-start justify-between">
+                  <UserAvatar user={person} />
+
+                  <span className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+                    {getCategory(person.role)}
+                  </span>
+                </div>
+
+                {/* USER NAME */}
+
+                <h3 className="truncate text-base font-bold text-slate-900">
+                  {person.fullName || "Educonnect Member"}
+                </h3>
+
+                {/* USER ROLE */}
+
+                <p className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                  <FiBriefcase size={14} />
+
+                  {person.jobTitle || person.program || person.role || "Member"}
+                </p>
+
+                {/* EMAIL */}
+
+                {person.email && (
+                  <p className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                    <FiMail size={14} />
+
+                    <span className="truncate">{person.email}</span>
+                  </p>
+                )}
+
+                {/* LOCATION */}
+
+                {person.location && (
+                  <p className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                    <FiMapPin size={14} />
+                    {person.location}
+                  </p>
+                )}
+
+                {/* ACTION BUTTONS */}
+
+                <div className="mt-auto space-y-2 pt-6">
+                  {renderConnectionAction(person)}
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate(`/educonnect/profile/${person._id}`)
+                    }
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-600 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+                  >
+                    View Profile
+                    <FiArrowUpRight size={16} />
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Friend;

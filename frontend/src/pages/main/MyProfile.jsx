@@ -1,4 +1,7 @@
-import React, { useContext, useMemo, useState } from "react";
+
+import React, { useContext, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 
 import {
   FiUser,
@@ -11,25 +14,14 @@ import {
   FiUsers,
   FiGrid,
   FiFileText,
-  FiBookmark,
   FiSettings,
-  FiMoreHorizontal,
-  FiHeart,
-  FiMessageCircle,
   FiShare2,
-  FiDownload,
-  FiEye,
-  FiSearch,
-  FiExternalLink,
-  FiCheckCircle,
-  FiClock,
-  FiXCircle,
-  FiAward,
-  FiTrendingUp,
-  FiUploadCloud,
   FiGlobe,
   FiGithub,
   FiLinkedin,
+  FiAward,
+  FiExternalLink,
+  FiArrowUpRight,
 } from "react-icons/fi";
 
 import { BsCardList } from "react-icons/bs";
@@ -38,295 +30,276 @@ import UploadJob from "../../components/UploadJob";
 import Mypost from "../../components/Mypost";
 import MyApplications from "../../components/MyApplications";
 import EditProfile from "../../components/EditProfile";
-
-import { AuthContext } from "../../context/authContext";
 import MyStudyMaterials from "../../components/MyStudyMaterials";
 
-// ==========================================
-// SAMPLE DATA
-// Replace these with API data when ready
-// ==========================================
+import { AuthContext } from "../../context/authContext";
+import { getMyFriends } from "../../services/connectionServices";
 
-const myPosts = [
-  {
-    id: 1,
-    content:
-      "Started learning Machine Learning! Currently exploring Python, NumPy and Pandas. Excited to build some real-world AI projects.",
-    date: "2 hours ago",
-    likes: 24,
-    comments: 8,
-  },
-  {
-    id: 2,
-    content:
-      "Working on Educonnect, a platform where students can connect, share study materials and discover internship opportunities. Building something meaningful!",
-    date: "Yesterday",
-    likes: 42,
-    comments: 12,
-  },
-  {
-    id: 3,
-    content:
-      "Consistency is more important than perfection. Keep learning, keep building and never stop improving.",
-    date: "3 days ago",
-    likes: 18,
-    comments: 5,
-  },
-];
+// ------------------------------------------
+// Reusable section
+// ------------------------------------------
 
-const applications = [
-  {
-    id: 1,
-    title: "MERN Stack Developer Intern",
-    company: "TechNova Solutions",
-    location: "Remote",
-    type: "Internship",
-    applied: "Oct 28, 2026",
-    status: "Shortlisted",
-    logo: "T",
-  },
-  {
-    id: 2,
-    title: "Frontend Developer Intern",
-    company: "CodeCraft Nepal",
-    location: "Kathmandu",
-    type: "Internship",
-    applied: "Oct 25, 2026",
-    status: "Pending",
-    logo: "C",
-  },
-  {
-    id: 3,
-    title: "Junior React Developer",
-    company: "Digital Horizon",
-    location: "Remote",
-    type: "Job",
-    applied: "Oct 20, 2026",
-    status: "Rejected",
-    logo: "D",
-  },
-  {
-    id: 4,
-    title: "Backend Developer Intern",
-    company: "Innovate Nepal",
-    location: "Pokhara",
-    type: "Internship",
-    applied: "Oct 15, 2026",
-    status: "Accepted",
-    logo: "I",
-  },
-];
-
-const materials = [
-  {
-    id: 1,
-    title: "Database Management System Notes",
-    subject: "DBMS",
-    university: "Far Western University",
-    semester: "4th Semester",
-    type: "Notes",
-    date: "Oct 29, 2026",
-    downloads: 45,
-    size: "2.4 MB",
-  },
-  {
-    id: 2,
-    title: "Data Structures and Algorithms",
-    subject: "DSA",
-    university: "Far Western University",
-    semester: "4th Semester",
-    type: "Question Paper",
-    date: "Oct 24, 2026",
-    downloads: 32,
-    size: "1.8 MB",
-  },
-  {
-    id: 3,
-    title: "Operating System Lab Report",
-    subject: "Operating System",
-    university: "Far Western University",
-    semester: "4th Semester",
-    type: "Lab Report",
-    date: "Oct 18, 2026",
-    downloads: 21,
-    size: "3.1 MB",
-  },
-];
-
-// ==========================================
-// STATUS BADGE
-// ==========================================
-
-const StatusBadge = ({ status }) => {
-  const styles = {
-    Pending: "bg-amber-50 text-amber-700 border-amber-200",
-    Shortlisted: "bg-blue-50 text-blue-700 border-blue-200",
-    Rejected: "bg-red-50 text-red-700 border-red-200",
-    Accepted: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  };
-
-  const icons = {
-    Pending: FiClock,
-    Shortlisted: FiCheckCircle,
-    Rejected: FiXCircle,
-    Accepted: FiAward,
-  };
-
-  const Icon = icons[status] || FiClock;
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${
-        styles[status] || styles.Pending
-      }`}
-    >
-      <Icon size={13} />
-      {status}
-    </span>
-  );
-};
-
-// ==========================================
-// MAIN PROFILE COMPONENT
-// ==========================================
+const Section = ({ title, description, children }) => (
+  <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <div className="mb-5">
+      <h2 className="text-base font-bold text-slate-900">
+        {title}
+      </h2>
+      {description && (
+        <p className="mt-1 text-xs text-slate-500">
+          {description}
+        </p>
+      )}
+    </div>
+    {children}
+  </section>
+);
 
 const MyProfile = () => {
-  const { users, setUsers } = useContext(AuthContext);
+  const navigate = useNavigate();
+  const { users, setUsers, authLoading } = useContext(AuthContext);
 
-  const [activeTab, setActiveTab] = useState("Overview");
-  const [actionvalue, setActionvalue] = useState("overview");
-
-  const [searchMaterial, setSearchMaterial] = useState("");
+  const [activeTab, setActiveTab] = useState("overview");
   const [showEditProfile, setShowEditProfile] = useState(false);
 
-  // ==========================================
-  // FILTER MATERIALS
-  // ==========================================
+  const [connectionCount, setConnectionCount] = useState(null);
+  const [connectionLoading, setConnectionLoading] = useState(true);
 
-  const filteredMaterials = useMemo(() => {
-    return materials.filter((material) => {
-      const search = searchMaterial.toLowerCase();
+  const isStudent = users?.role?.toLowerCase() === "student";
+  const isProfessional =
+    users?.role?.toLowerCase() === "professional";
 
-      return (
-        material.title.toLowerCase().includes(search) ||
-        material.subject.toLowerCase().includes(search) ||
-        material.type.toLowerCase().includes(search)
-      );
-    });
-  }, [searchMaterial]);
+  // ------------------------------------------
+  // Fetch actual accepted connection count
+  // ------------------------------------------
 
-  // ==========================================
-  // PROFILE INFORMATION
-  // ==========================================
+  useEffect(() => {
+    if (!users?._id) {
+      setConnectionCount(null);
+      setConnectionLoading(false);
+      return;
+    }
 
-  if (!users) {
+    let active = true;
+
+    const fetchConnections = async () => {
+      try {
+        setConnectionLoading(true);
+
+        const response = await getMyFriends();
+
+        if (!active) return;
+
+        const friends = response.data.friends;
+
+        setConnectionCount(
+          Array.isArray(friends) ? friends.length : 0
+        );
+      } catch (error) {
+        console.error("Connection count error:", error);
+
+        if (active) {
+          setConnectionCount(null);
+        }
+      } finally {
+        if (active) setConnectionLoading(false);
+      }
+    };
+
+    fetchConnections();
+
+    return () => {
+      active = false;
+    };
+  }, [users?._id]);
+
+  // ------------------------------------------
+  // Profile update
+  // ------------------------------------------
+
+  const handleProfileUpdated = (updatedUser) => {
+    setUsers((previous) => ({
+      ...previous,
+      ...updatedUser,
+    }));
+
+    setShowEditProfile(false);
+    toast.success("Profile updated successfully");
+  };
+
+  // ------------------------------------------
+  // Share profile
+  // ------------------------------------------
+
+  const handleShare = async () => {
+    const profileUrl = `${window.location.origin}/profile/${users._id}`;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `${users.fullName}'s Educonnect Profile`,
+          text: `View ${users.fullName}'s profile on Educonnect`,
+          url: profileUrl,
+        });
+      } else {
+        await navigator.clipboard.writeText(profileUrl);
+        toast.success("Profile link copied");
+      }
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        toast.error("Unable to share profile");
+      }
+    }
+  };
+
+  // ------------------------------------------
+  // Loading / unauthenticated
+  // ------------------------------------------
+
+  if (authLoading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="flex min-h-[70vh] items-center justify-center">
         <div className="text-center">
-          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-emerald-100 border-t-emerald-600" />
-          <p className="mt-3 text-sm text-gray-500">Loading your profile...</p>
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-emerald-100 border-t-emerald-700" />
+          <p className="mt-3 text-sm text-slate-500">
+            Loading your profile...
+          </p>
         </div>
       </div>
     );
   }
 
-  const isStudent = users.role === "student";
-  const isProfessional = users.role === "professional";
+  if (!users) {
+    return (
+      <div className="flex min-h-[70vh] flex-col items-center justify-center gap-4">
+        <FiUser size={36} className="text-slate-400" />
+        <h2 className="text-lg font-bold text-slate-900">
+          Please sign in to view your profile
+        </h2>
+      </div>
+    );
+  }
+
+  // ------------------------------------------
+  // Profile information
+  // ------------------------------------------
 
   const roleLabel = isStudent
     ? "Student"
     : isProfessional
-      ? "Professional"
-      : "Educonnect Member";
+    ? "Professional"
+    : users.role || "Educonnect Member";
 
   const joinedDate = users.createdAt
     ? new Date(users.createdAt).toLocaleDateString("en-US", {
         month: "long",
         year: "numeric",
       })
-    : "Educonnect Member";
+    : null;
 
-  const stats = [
+  const initials = (users.fullName || "U")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+
+  const navigation = [
     {
-      label: "Posts Shared",
-      value: "24",
+      id: "overview",
+      label: "Overview",
+      icon: FiGrid,
+    },
+    {
+      id: "post",
+      label: "My Posts",
       icon: FiFileText,
-      color: "text-blue-600",
-      bg: "bg-blue-50",
     },
+    ...(isProfessional
+      ? [
+          {
+            id: "job",
+            label: "Upload Job",
+            icon: BsCardList,
+          },
+        ]
+      : []),
+    ...(isStudent
+      ? [
+          {
+            id: "application",
+            label: "My Applications",
+            icon: FiBriefcase,
+          },
+        ]
+      : []),
     {
-      label: "Applications",
-      value: "12",
-      icon: FiBriefcase,
-      color: "text-violet-600",
-      bg: "bg-violet-50",
-    },
-    {
+      id: "study",
       label: "Study Materials",
-      value: "08",
       icon: FiBookOpen,
-      color: "text-emerald-600",
-      bg: "bg-emerald-50",
     },
     {
-      label: "Connections",
-      value: "156",
-      icon: FiUsers,
-      color: "text-orange-600",
-      bg: "bg-orange-50",
+      id: "settings",
+      label: "Account Settings",
+      icon: FiSettings,
     },
   ];
 
-  // ==========================================
-  // NAVIGATION
-  // ==========================================
+  const socialLinks = [
+    {
+      label: "Website",
+      url: users.website,
+      icon: FiGlobe,
+    },
+    {
+      label: "LinkedIn",
+      url: users.linkedin,
+      icon: FiLinkedin,
+    },
+    {
+      label: "GitHub",
+      url: users.github,
+      icon: FiGithub,
+    },
+  ].filter(({ url }) => {
+    if (!url) return false;
 
-  const handleAction = (action) => {
-    setActionvalue(action);
-    setActiveTab("Overview");
-  };
-
-  // ==========================================
-  // PROFILE UPDATE CALLBACK
-  // ==========================================
-
-  const handleProfileUpdated = (updatedUser) => {
-    setUsers((previousUser) => ({
-      ...previousUser,
-      ...updatedUser,
-    }));
-  };
-
-  // ==========================================
-  // RENDER
-  // ==========================================
+    try {
+      const parsed = new URL(url);
+      return ["http:", "https:"].includes(parsed.protocol);
+    } catch {
+      return false;
+    }
+  });
 
   return (
-    <div className="min-h-screen bg-[#f4f7f8] pb-10 text-slate-800">
+    <div className="min-h-screen bg-[#f5f8f7] pb-12 text-slate-800">
       <div className="mx-auto max-w-[1250px] px-4 py-6 sm:px-6 lg:px-8">
+
         {/* BREADCRUMB */}
 
         <div className="mb-5 flex items-center gap-2 text-sm">
           <span className="text-slate-400">Educonnect</span>
           <span className="text-slate-300">/</span>
-          <span className="font-semibold text-emerald-700">My Profile</span>
+          <span className="font-semibold text-emerald-700">
+            My Profile
+          </span>
         </div>
 
-        {/* ======================================
-            PROFILE HEADER
-        ====================================== */}
+        {/* PROFILE HEADER */}
 
-        <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+
           {/* COVER */}
 
-          <div className="relative h-44 overflow-hidden bg-linear-to-r from-emerald-950 via-emerald-800 to-teal-700 sm:h-56">
-            <div className="absolute -right-10 -top-20 h-72 w-72 rounded-full border-[35px] border-white/5" />
-
+          <div className="relative h-44 overflow-hidden bg-gradient-to-r from-emerald-950 via-emerald-800 to-teal-700 sm:h-56">
+            <div className="absolute -right-12 -top-20 h-72 w-72 rounded-full border-[35px] border-white/5" />
             <div className="absolute -bottom-32 left-1/3 h-72 w-72 rounded-full border-[35px] border-white/5" />
 
-            <div className="absolute bottom-5 left-6 text-white sm:left-10">
-              <p className="text-xs font-medium uppercase tracking-[3px] text-emerald-100">
-                Your learning journey
+            <div className="absolute bottom-6 left-6 text-white sm:left-9">
+              <p className="text-xs font-semibold uppercase tracking-[3px] text-emerald-100">
+                Your Learning Journey
               </p>
 
               <h2 className="mt-2 text-xl font-bold sm:text-2xl">
@@ -335,14 +308,16 @@ const MyProfile = () => {
             </div>
           </div>
 
-          {/* PROFILE INFORMATION */}
+          {/* PROFILE DETAILS */}
 
-          <div className="px-5 pb-6 sm:px-9">
+          <div className="px-5 pb-7 sm:px-9">
             <div className="-mt-14 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-                {/* PROFILE PICTURE */}
 
-                <div className="relative w-fit">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+
+                {/* AVATAR */}
+
+                <div className="relative w-fit shrink-0">
                   {users.profilepic ? (
                     <img
                       src={users.profilepic}
@@ -350,48 +325,59 @@ const MyProfile = () => {
                       className="h-28 w-28 rounded-2xl border-4 border-white bg-white object-cover shadow-md"
                     />
                   ) : (
-                    <div className="flex h-28 w-28 items-center justify-center rounded-2xl border-4 border-white bg-emerald-100 text-4xl font-bold text-emerald-700 shadow-md">
-                      {users.fullName?.charAt(0)?.toUpperCase() || "U"}
+                    <div className="flex h-28 w-28 items-center justify-center rounded-2xl border-4 border-white bg-emerald-100 text-3xl font-bold text-emerald-700 shadow-md">
+                      {initials}
                     </div>
                   )}
-
-                  <span className="absolute bottom-2 right-2 h-4 w-4 rounded-full border-2 border-white bg-emerald-500" />
                 </div>
 
-                {/* NAME AND ROLE */}
+                {/* NAME */}
 
                 <div className="pb-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="text-2xl font-bold text-slate-900">
-                      {users.fullName}
+                      {users.fullName || "Educonnect Member"}
                     </h1>
 
                     {users.isverified && (
                       <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700">
-                        VERIFIED MEMBER
+                        VERIFIED
                       </span>
                     )}
                   </div>
 
                   <p className="mt-1 text-sm text-slate-500">
-                    {isProfessional
-                      ? users.jobTitle || roleLabel
-                      : isStudent
-                        ? users.program || roleLabel
-                        : roleLabel}
+                    {users.jobTitle ||
+                      users.program ||
+                      roleLabel}
                   </p>
 
-                  <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
+                  <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+
                     {users.location && (
-                      <span className="flex items-center gap-1">
+                      <span className="flex items-center gap-1.5">
                         <FiMapPin size={13} />
                         {users.location}
                       </span>
                     )}
 
-                    <span className="flex items-center gap-1">
-                      <FiCalendar size={13} />
-                      Joined {joinedDate}
+                    {joinedDate && (
+                      <span className="flex items-center gap-1.5">
+                        <FiCalendar size={13} />
+                        Joined {joinedDate}
+                      </span>
+                    )}
+
+                    {/* SMALL REAL CONNECTION COUNT */}
+
+                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-700">
+                      <FiUsers size={14} />
+                      {connectionLoading
+                        ? "Loading..."
+                        : connectionCount === null
+                        ? "Unavailable"
+                        : connectionCount}{" "}
+                      Connections
                     </span>
                   </div>
                 </div>
@@ -402,27 +388,15 @@ const MyProfile = () => {
               <div className="flex flex-wrap gap-2 pb-1">
                 <button
                   onClick={() => setShowEditProfile(true)}
-                  className="flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-emerald-800"
+                  className="flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-emerald-800"
                 >
                   <FiEdit size={14} />
                   Edit Profile
                 </button>
 
                 <button
-                  onClick={() => {
-                    if (navigator.share) {
-                      navigator
-                        .share({
-                          title: `${users.fullName}'s Educonnect Profile`,
-                          text: `Connect with ${users.fullName} on Educonnect.`,
-                          url: window.location.href,
-                        })
-                        .catch(() => {});
-                    } else {
-                      navigator.clipboard.writeText(window.location.href);
-                    }
-                  }}
-                  className="flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  onClick={handleShare}
+                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
                 >
                   <FiShare2 size={14} />
                   Share Profile
@@ -433,95 +407,86 @@ const MyProfile = () => {
             {/* BIO */}
 
             <div className="mt-6 max-w-3xl">
+              <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+                About Me
+              </h3>
+
               <p className="text-sm leading-7 text-slate-600">
                 {users.bio ||
-                  "No bio added yet. Tell the community something about yourself."}
+                  "No bio added yet. Tell others something about yourself."}
               </p>
+            </div>
 
-              <div className="mt-4 flex flex-wrap gap-4 text-xs text-slate-500">
+            {/* CONTACT DETAILS */}
+
+            <div className="mt-5 flex flex-wrap gap-4 text-xs text-slate-500">
+              {users.email && (
                 <span className="flex items-center gap-2">
                   <FiMail className="text-emerald-700" />
                   {users.email}
                 </span>
+              )}
 
-                {isStudent && users.university && (
-                  <span className="flex items-center gap-2">
-                    <FiBookOpen className="text-emerald-700" />
-                    {users.university}
-                  </span>
-                )}
+              {isStudent && users.university && (
+                <span className="flex items-center gap-2">
+                  <FiBookOpen className="text-emerald-700" />
+                  {users.university}
+                </span>
+              )}
 
-                {isProfessional && users.company && (
-                  <span className="flex items-center gap-2">
-                    <FiBriefcase className="text-emerald-700" />
-                    {users.company}
-                  </span>
-                )}
-
-                {users.website && (
-                  <a
-                    href={users.website}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-2 transition hover:text-emerald-700"
-                  >
-                    <FiGlobe className="text-emerald-700" />
-                    Website
-                  </a>
-                )}
-
-                {users.linkedin && (
-                  <a
-                    href={users.linkedin}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-2 transition hover:text-emerald-700"
-                  >
-                    <FiLinkedin className="text-emerald-700" />
-                    LinkedIn
-                  </a>
-                )}
-
-                {users.github && (
-                  <a
-                    href={users.github}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-2 transition hover:text-emerald-700"
-                  >
-                    <FiGithub className="text-emerald-700" />
-                    GitHub
-                  </a>
-                )}
-              </div>
+              {isProfessional && users.company && (
+                <span className="flex items-center gap-2">
+                  <FiBriefcase className="text-emerald-700" />
+                  {users.company}
+                </span>
+              )}
             </div>
+
+            {/* SOCIAL LINKS */}
+
+            {socialLinks.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-4">
+                {socialLinks.map(({ label, url, icon: Icon }) => (
+                  <a
+                    key={label}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-xs font-medium text-emerald-700 hover:underline"
+                  >
+                    <Icon size={14} />
+                    {label}
+                    <FiArrowUpRight size={12} />
+                  </a>
+                ))}
+              </div>
+            )}
 
             {/* SKILLS */}
 
-            {users.skills?.length > 0 && (
-              <div className="mt-5">
-                <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Skills
-                </p>
+            {Array.isArray(users.skills) &&
+              users.skills.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Skills
+                  </h3>
 
-                <div className="flex flex-wrap gap-2">
-                  {users.skills.map((skill, index) => (
-                    <span
-                      key={`${skill}-${index}`}
-                      className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700"
-                    >
-                      {skill}
-                    </span>
-                  ))}
+                  <div className="flex flex-wrap gap-2">
+                    {users.skills.map((skill, index) => (
+                      <span
+                        key={`${skill}-${index}`}
+                        className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700"
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
           </div>
         </section>
 
-        {/* ======================================
-            EDIT PROFILE MODAL
-        ====================================== */}
+        {/* EDIT PROFILE MODAL */}
 
         <EditProfile
           isOpen={showEditProfile}
@@ -530,130 +495,35 @@ const MyProfile = () => {
           onUpdated={handleProfileUpdated}
         />
 
-        {/* ======================================
-            STATISTICS
-        ====================================== */}
+        {/* MAIN DASHBOARD */}
 
-        <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {stats.map((stat) => {
-            const Icon = stat.icon;
+        <div className="mt-6 grid grid-cols-1 items-start gap-5 lg:grid-cols-[245px_minmax(0,1fr)]">
 
-            return (
-              <div
-                key={stat.label}
-                className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <div className="flex items-center justify-between">
-                  <div className={`rounded-lg p-2.5 ${stat.bg} ${stat.color}`}>
-                    <Icon size={19} />
-                  </div>
-
-                  <FiTrendingUp className="text-emerald-600" />
-                </div>
-
-                <h3 className="mt-4 text-2xl font-bold text-slate-900">
-                  {stat.value}
-                </h3>
-
-                <p className="mt-1 text-xs text-slate-500">{stat.label}</p>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* ======================================
-            MAIN CONTENT
-        ====================================== */}
-
-        <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-[235px_minmax(0,1fr)]">
           {/* LEFT NAVIGATION */}
 
-          <aside className="h-fit rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+          <aside className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
             <p className="px-3 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">
               Profile Dashboard
             </p>
 
-            <div className="ml-2 flex flex-col space-y-2">
-              <button
-                onClick={() => handleAction("overview")}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${
-                  actionvalue === "overview"
-                    ? "bg-emerald-50 font-semibold text-emerald-800"
-                    : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <FiGrid />
-                Overview
-              </button>
-
-              <button
-                onClick={() => handleAction("post")}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${
-                  actionvalue === "post"
-                    ? "bg-emerald-50 font-semibold text-emerald-800"
-                    : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <FiFileText />
-                My Posts
-              </button>
-
-              {isProfessional && (
+            <nav className="space-y-1">
+              {navigation.map(({ id, label, icon: Icon }) => (
                 <button
-                  onClick={() => handleAction("job")}
-                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${
-                    actionvalue === "job"
+                  key={id}
+                  onClick={() => setActiveTab(id)}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm transition ${
+                    activeTab === id
                       ? "bg-emerald-50 font-semibold text-emerald-800"
                       : "text-slate-600 hover:bg-slate-50"
                   }`}
                 >
-                  <BsCardList />
-                  Upload Job
+                  <Icon size={17} />
+                  {label}
                 </button>
-              )}
+              ))}
+            </nav>
 
-              {isStudent && (
-                <button
-                  onClick={() => handleAction("application")}
-                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${
-                    actionvalue === "application"
-                      ? "bg-emerald-50 font-semibold text-emerald-800"
-                      : "text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  <FiBriefcase />
-                  My Applications
-                </button>
-              )}
-
-              <button
-                onClick={() => handleAction("study")}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${
-                  actionvalue === "study"
-                    ? "bg-emerald-50 font-semibold text-emerald-800"
-                    : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <FiBookOpen />
-                Study Materials
-              </button>
-            </div>
-
-            <div className="my-3 border-t border-slate-100" />
-
-            <button
-              onClick={() => setActiveTab("Settings")}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm ${
-                activeTab === "Settings"
-                  ? "bg-emerald-50 text-emerald-800"
-                  : "text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              <FiSettings size={18} />
-              Account Settings
-            </button>
-
-            {/* ROLE-BASED INFORMATION CARD */}
+            {/* ROLE INFORMATION */}
 
             <div className="mt-5 rounded-xl bg-slate-50 p-4">
               {isStudent ? (
@@ -679,7 +549,9 @@ const MyProfile = () => {
                 <>
                   <div className="flex items-center gap-2 text-emerald-700">
                     <FiBriefcase size={17} />
-                    <p className="text-xs font-bold">Professional</p>
+                    <p className="text-xs font-bold">
+                      Professional Information
+                    </p>
                   </div>
 
                   <p className="mt-3 text-sm font-semibold text-slate-800">
@@ -701,251 +573,268 @@ const MyProfile = () => {
           {/* RIGHT CONTENT */}
 
           <main className="min-w-0">
-            {/* ======================================
-                OVERVIEW
-            ====================================== */}
 
-            {actionvalue === "overview" && activeTab !== "Settings" && (
+            {/* OVERVIEW */}
+
+            {activeTab === "overview" && (
               <div className="space-y-5">
-                {/* PROFILE OVERVIEW */}
 
-                <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
-                  <div className="mb-5 flex items-center justify-between">
-                    <div>
-                      <h2 className="text-base font-bold text-slate-900">
-                        Profile Overview
-                      </h2>
-
-                      <p className="mt-1 text-xs text-slate-500">
-                        Your activity and contributions on Educonnect
-                      </p>
-                    </div>
-
-                    <FiMoreHorizontal className="text-slate-400" size={20} />
-                  </div>
-
+                <Section
+                  title="Profile Overview"
+                  description="Your information and activity on Educonnect"
+                >
                   <div className="grid gap-4 sm:grid-cols-2">
+
                     <div className="rounded-xl border border-slate-100 p-4">
                       <div className="flex items-center gap-3">
-                        <div className="rounded-lg bg-blue-50 p-3 text-blue-600">
-                          <FiBriefcase size={20} />
+                        <div className="rounded-xl bg-emerald-50 p-3 text-emerald-700">
+                          <FiUser size={20} />
                         </div>
 
                         <div>
                           <p className="text-xs text-slate-500">
-                            Job Applications
+                            Account Type
                           </p>
 
-                          <h3 className="text-xl font-bold">12</h3>
+                          <h3 className="mt-1 font-bold text-slate-900">
+                            {roleLabel}
+                          </h3>
                         </div>
-                      </div>
-
-                      <div className="mt-4 flex items-center justify-between text-xs">
-                        <span className="text-slate-500">Shortlisted</span>
-                        <span className="font-bold text-blue-600">3</span>
-                      </div>
-
-                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                        <div className="h-full w-1/4 rounded-full bg-blue-500" />
                       </div>
                     </div>
 
                     <div className="rounded-xl border border-slate-100 p-4">
                       <div className="flex items-center gap-3">
-                        <div className="rounded-lg bg-emerald-50 p-3 text-emerald-600">
-                          <FiBookOpen size={20} />
+                        <div className="rounded-xl bg-blue-50 p-3 text-blue-600">
+                          <FiUsers size={20} />
                         </div>
 
                         <div>
                           <p className="text-xs text-slate-500">
-                            Shared Resources
+                            Connections
                           </p>
 
-                          <h3 className="text-xl font-bold">08</h3>
+                          <h3 className="mt-1 font-bold text-slate-900">
+                            {connectionLoading
+                              ? "Loading..."
+                              : connectionCount ?? "Unavailable"}
+                          </h3>
                         </div>
-                      </div>
-
-                      <div className="mt-4 flex items-center justify-between text-xs">
-                        <span className="text-slate-500">Total Downloads</span>
-                        <span className="font-bold text-emerald-600">98</span>
-                      </div>
-
-                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                        <div className="h-full w-3/4 rounded-full bg-emerald-500" />
                       </div>
                     </div>
                   </div>
-                </section>
+                </Section>
 
-                {/* RECENT APPLICATIONS */}
+                {/* EDUCATION OR CAREER */}
 
-                {isStudent && (
-                  <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
-                    <div className="mb-5 flex items-center justify-between">
-                      <div>
-                        <h2 className="text-base font-bold text-slate-900">
-                          Recent Applications
-                        </h2>
+                <Section
+                  title={
+                    isStudent
+                      ? "Education Details"
+                      : "Professional Details"
+                  }
+                  description="Information added to your profile"
+                >
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {(isStudent
+                      ? [
+                          ["University", users.university],
+                          ["Program", users.program],
+                          ["Semester", users.semester],
+                        ]
+                      : [
+                          ["Job Title", users.jobTitle],
+                          ["Company", users.company],
+                          ["Experience", users.experienceLevel],
+                        ]
+                    ).map(([label, value]) => (
+                      <div
+                        key={label}
+                        className="rounded-xl bg-slate-50 p-4"
+                      >
+                        <p className="text-xs text-slate-500">
+                          {label}
+                        </p>
 
-                        <p className="mt-1 text-xs text-slate-500">
-                          Track your job and internship applications
+                        <p className="mt-2 text-sm font-semibold text-slate-900">
+                          {value || "Not provided"}
                         </p>
                       </div>
+                    ))}
+                  </div>
+                </Section>
 
-                      <button
-                        onClick={() => handleAction("application")}
-                        className="text-xs font-semibold text-emerald-700 hover:text-emerald-900"
-                      >
-                        View All
-                      </button>
-                    </div>
+                {/* QUICK ACTIONS */}
 
-                    <div className="space-y-3">
-                      {applications.slice(0, 3).map((application) => (
-                        <div
-                          key={application.id}
-                          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 p-3"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 font-bold text-emerald-700">
-                              {application.logo}
-                            </div>
-
-                            <div>
-                              <h3 className="text-sm font-semibold">
-                                {application.title}
-                              </h3>
-
-                              <p className="mt-1 text-xs text-slate-500">
-                                {application.company} · {application.applied}
-                              </p>
-                            </div>
-                          </div>
-
-                          <StatusBadge status={application.status} />
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-
-                {/* RECENT POSTS */}
-
-                <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
-                  <div className="mb-5 flex items-center justify-between">
-                    <div>
-                      <h2 className="text-base font-bold text-slate-900">
-                        Recent Posts
-                      </h2>
-
-                      <p className="mt-1 text-xs text-slate-500">
-                        Your latest community activity
-                      </p>
-                    </div>
+                <Section
+                  title="Quick Actions"
+                  description="Manage your Educonnect activity"
+                >
+                  <div className="grid gap-3 sm:grid-cols-2">
 
                     <button
-                      onClick={() => handleAction("post")}
-                      className="text-xs font-semibold text-emerald-700"
+                      onClick={() => setActiveTab("post")}
+                      className="flex items-center justify-between rounded-xl border border-slate-200 p-4 text-left transition hover:border-emerald-200 hover:bg-emerald-50/30"
                     >
-                      View All
+                      <span className="flex items-center gap-3">
+                        <FiFileText className="text-emerald-700" />
+                        <span className="text-sm font-semibold">
+                          My Posts
+                        </span>
+                      </span>
+                      <FiArrowUpRight />
                     </button>
-                  </div>
 
-                  {myPosts.slice(0, 2).map((post) => (
-                    <div
-                      key={post.id}
-                      className="mb-3 rounded-xl border border-slate-100 p-4 last:mb-0"
+                    <button
+                      onClick={() => setActiveTab("study")}
+                      className="flex items-center justify-between rounded-xl border border-slate-200 p-4 text-left transition hover:border-emerald-200 hover:bg-emerald-50/30"
                     >
-                      <p className="text-sm leading-6 text-slate-700">
-                        {post.content}
-                      </p>
-
-                      <p className="mt-3 text-xs text-slate-400">{post.date}</p>
-
-                      <div className="mt-3 flex gap-5 border-t border-slate-100 pt-3 text-xs text-slate-500">
-                        <span className="flex items-center gap-1">
-                          <FiHeart className="text-rose-500" />
-                          {post.likes} Likes
+                      <span className="flex items-center gap-3">
+                        <FiBookOpen className="text-emerald-700" />
+                        <span className="text-sm font-semibold">
+                          Study Materials
                         </span>
+                      </span>
+                      <FiArrowUpRight />
+                    </button>
 
-                        <span className="flex items-center gap-1">
-                          <FiMessageCircle />
-                          {post.comments} Comments
+                    {isStudent && (
+                      <button
+                        onClick={() => setActiveTab("application")}
+                        className="flex items-center justify-between rounded-xl border border-slate-200 p-4 text-left hover:border-emerald-200"
+                      >
+                        <span className="flex items-center gap-3">
+                          <FiBriefcase className="text-emerald-700" />
+                          <span className="text-sm font-semibold">
+                            My Applications
+                          </span>
                         </span>
-                      </div>
-                    </div>
-                  ))}
-                </section>
+                        <FiArrowUpRight />
+                      </button>
+                    )}
+
+                    {isProfessional && (
+                      <button
+                        onClick={() => setActiveTab("job")}
+                        className="flex items-center justify-between rounded-xl border border-slate-200 p-4 text-left hover:border-emerald-200"
+                      >
+                        <span className="flex items-center gap-3">
+                          <FiBriefcase className="text-emerald-700" />
+                          <span className="text-sm font-semibold">
+                            Upload Job
+                          </span>
+                        </span>
+                        <FiArrowUpRight />
+                      </button>
+                    )}
+                  </div>
+                </Section>
+
+                {/* PUBLIC PROFILE */}
+
+                <Section
+                  title="Public Profile"
+                  description="See how other Educonnect members view your profile"
+                >
+                  <button
+                    onClick={() => navigate(`/profile/${users._id}`)}
+                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-800"
+                  >
+                    <FiExternalLink />
+                    View My Public Profile
+                  </button>
+                </Section>
               </div>
             )}
 
-            {/* UPLOAD JOB */}
-
-            {actionvalue === "job" && isProfessional && <UploadJob />}
-
             {/* MY POSTS */}
 
-            {actionvalue === "post" && <Mypost />}
+            {activeTab === "post" && <Mypost />}
+
+            {/* UPLOAD JOB */}
+
+            {activeTab === "job" && isProfessional && (
+              <UploadJob />
+            )}
 
             {/* MY APPLICATIONS */}
 
-            {actionvalue === "application" && isStudent && <MyApplications />}
+            {activeTab === "application" && isStudent && (
+              <MyApplications />
+            )}
 
-            {/* ======================================
-                STUDY MATERIALS
-            ====================================== */}
+            {/* STUDY MATERIALS */}
 
-            {actionvalue === "study" && <MyStudyMaterials user={users} />}
+            {activeTab === "study" && (
+              <MyStudyMaterials user={users} />
+            )}
 
-            {/* ======================================
-                ACCOUNT SETTINGS
-            ====================================== */}
+            {/* SETTINGS */}
 
-            {activeTab === "Settings" && (
-              <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-bold text-slate-900">
-                  Account Settings
-                </h2>
+            {activeTab === "settings" && (
+              <Section
+                title="Account Settings"
+                description="Manage your profile and account information"
+              >
+                <div className="space-y-3">
 
-                <p className="mt-1 text-xs text-slate-500">
-                  Manage your personal information and account preferences.
-                </p>
+                  <button
+                    onClick={() => setShowEditProfile(true)}
+                    className="flex w-full items-center justify-between rounded-xl border border-slate-200 p-4 text-left transition hover:border-emerald-200 hover:bg-emerald-50/30"
+                  >
+                    <div className="flex items-center gap-3">
+                      <FiEdit className="text-emerald-700" />
 
-                <div className="mt-6 space-y-4">
-                  {[
-                    [
-                      "Personal Information",
-                      "Manage your name, email and bio.",
-                    ],
-                    ["Change Password", "Update your account password."],
-                    ["Privacy Settings", "Control your profile visibility."],
-                    [
-                      "Notification Preferences",
-                      "Manage email and app notifications.",
-                    ],
-                  ].map(([title, description]) => (
-                    <button
-                      key={title}
-                      onClick={() => {
-                        if (title === "Personal Information") {
-                          setShowEditProfile(true);
-                        }
-                      }}
-                      className="flex w-full items-center justify-between rounded-xl border border-slate-100 p-4 text-left hover:border-emerald-200 hover:bg-emerald-50/30"
-                    >
                       <div>
-                        <h3 className="text-sm font-semibold">{title}</h3>
+                        <p className="text-sm font-semibold text-slate-900">
+                          Edit Personal Information
+                        </p>
 
                         <p className="mt-1 text-xs text-slate-500">
-                          {description}
+                          Update your name, bio, skills and profile details.
                         </p>
                       </div>
+                    </div>
 
-                      <FiExternalLink className="text-slate-400" />
-                    </button>
-                  ))}
+                    <FiArrowUpRight className="text-slate-400" />
+                  </button>
+
+                  <button
+                    onClick={handleShare}
+                    className="flex w-full items-center justify-between rounded-xl border border-slate-200 p-4 text-left transition hover:border-emerald-200 hover:bg-emerald-50/30"
+                  >
+                    <div className="flex items-center gap-3">
+                      <FiShare2 className="text-emerald-700" />
+
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          Share Profile
+                        </p>
+
+                        <p className="mt-1 text-xs text-slate-500">
+                          Copy or share your public profile link.
+                        </p>
+                      </div>
+                    </div>
+
+                    <FiArrowUpRight className="text-slate-400" />
+                  </button>
+
+                  <div className="rounded-xl bg-slate-50 p-4">
+                    <div className="flex items-center gap-2 text-slate-700">
+                      <FiAward className="text-emerald-700" />
+                      <p className="text-sm font-semibold">
+                        Educonnect Account
+                      </p>
+                    </div>
+
+                    <p className="mt-2 text-xs leading-6 text-slate-500">
+                      Your account information is managed securely
+                      through your existing authentication system.
+                    </p>
+                  </div>
                 </div>
-              </section>
+              </Section>
             )}
           </main>
         </div>

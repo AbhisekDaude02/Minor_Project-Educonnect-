@@ -1,72 +1,134 @@
-const { connection } = require("mongoose");
+
+const mongoose = require("mongoose");
 const Connection = require("../models/connectionModel");
 const User = require("../models/usersModel");
 const createNotification = require("../utils/createNotification");
 
-// Making the controller for the sending the friend request
+const isValidId = (id) => mongoose.isValidObjectId(id);
 
+// GET PEOPLE + CONNECTION STATUS
+const getCommunityUsers = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const users = await User.find({
+      _id: { $ne: userId },
+    })
+      .select("fullName email role profilepic")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const connections = await Connection.find({
+      $or: [{ sender: userId }, { recevier: userId }],
+    }).lean();
+
+    const connectionMap = new Map();
+
+    for (const connection of connections) {
+      const sender = connection.sender.toString();
+      const receiver = connection.recevier.toString();
+
+      const otherId = sender === userId.toString()
+        ? receiver
+        : sender;
+
+      let status = "none";
+
+      if (connection.status === "accepted") {
+        status = "friends";
+      } else if (connection.status === "pending") {
+        status = sender === userId.toString()
+          ? "sent"
+          : "received";
+      }
+
+      connectionMap.set(otherId, {
+        connectionStatus: status,
+        connectionId: connection._id,
+      });
+    }
+
+    const communityUsers = users.map((user) => ({
+      ...user,
+      connectionStatus:
+        connectionMap.get(user._id.toString())
+          ?.connectionStatus || "none",
+      connectionId:
+        connectionMap.get(user._id.toString())
+          ?.connectionId || null,
+    }));
+
+    return res.status(200).json({
+      message: "Community users fetched successfully",
+      users: communityUsers,
+    });
+  } catch (error) {
+    console.error("Get community users error:", error);
+
+    return res.status(500).json({
+      message: "Failed to fetch community users",
+    });
+  }
+};
+
+// SEND FRIEND REQUEST
 const sendFriendRequest = async (req, res) => {
   try {
     const senderId = req.user.userId;
     const recevierId = req.params.userId;
 
-    //user cannot send friend request to yourself
-    if (senderId === recevierId) {
+    if (!isValidId(recevierId)) {
       return res.status(400).json({
-        message: "You are not allow to send friend request to yourself",
-      });
-    }
-    const recevier = await User.findById(recevierId);
-    if (!recevier) {
-      return res.status(400).json({
-        message: "User doesnt exist",
+        message: "Invalid user ID",
       });
     }
 
-    //Checking whether there is already connection or not
+    if (senderId.toString() === recevierId.toString()) {
+      return res.status(400).json({
+        message: "You cannot send a request to yourself",
+      });
+    }
 
-    const existingConnection = await Connection.findOne({
+    const receiver = await User.findById(recevierId);
+
+    if (!receiver) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    let connection = await Connection.findOne({
       $or: [
-        {
-          sender: senderId,
-          recevier: recevierId,
-        },
-        {
-          sender: recevierId,
-          recevier: senderId,
-        },
+        { sender: senderId, recevier: recevierId },
+        { sender: recevierId, recevier: senderId },
       ],
     });
 
-    if (existingConnection) {
-      if (existingConnection.status === "pending") {
-        return res.status(400).json({
-          message: "you already send the friend request",
-        });
-      }
-      if (existingConnection.status === "accepted") {
-        return res.status(400).json({
-          message: "You are already friend with this user",
+    if (connection) {
+      if (connection.status === "pending") {
+        return res.status(409).json({
+          message: "A friend request is already pending",
         });
       }
 
-      if (existingConnection.status === "rejected") {
-        existingConnection.sender = senderId;
-        existingConnection.recevier = recevierId;
-        existingConnection.status = "pending";
-        await existingConnection.save();
-        return res.status(201).json({
-          message: "Friend request send successfully",
+      if (connection.status === "accepted") {
+        return res.status(409).json({
+          message: "You are already connected",
         });
       }
+
+      connection.sender = senderId;
+      connection.recevier = recevierId;
+      connection.status = "pending";
+
+      await connection.save();
+    } else {
+      connection = await Connection.create({
+        sender: senderId,
+        recevier: recevierId,
+        status: "pending",
+      });
     }
-    //Creating the new friend request
-
-    const connection = await Connection.create({
-      sender: senderId,
-      recevier: recevierId,
-      status: "pending",
-    });
 
     await createNotification({
       recipient: recevierId,
@@ -79,66 +141,71 @@ const sendFriendRequest = async (req, res) => {
     });
 
     return res.status(201).json({
-      message: "New friend request sent successfully",
+      message: "Friend request sent successfully",
       connection,
     });
   } catch (error) {
-    console.log(error);
+    console.error("Send friend request error:", error);
 
-    res.status(500).json({
-      message: "Faild to send the friend request",
-      error: error.message,
+    return res.status(500).json({
+      message: "Failed to send friend request",
     });
   }
 };
 
-// Making controller for the getting friend request
+// GET INCOMING PENDING REQUESTS
 const getFriendRequest = async (req, res) => {
   try {
     const userId = req.user.userId;
+
     const connections = await Connection.find({
-      $or: [{ sender: userId }, { recevier: userId }],
-      status: "accepted",
+      recevier: userId,
+      status: "pending",
     })
       .populate("sender", "fullName email role profilepic")
-      .populate("recevier", "fullName email role profilepic")
       .sort({ createdAt: -1 });
-    res.status(200).json({
-      message: "friend request get sucessfully",
+
+    return res.status(200).json({
+      message: "Friend requests fetched successfully",
       connections,
     });
   } catch (error) {
-    console.log(error);
-    res.status(500).json({
-      message: "Failed to get the request",
-      error: error.message,
+    console.error("Get requests error:", error);
+
+    return res.status(500).json({
+      message: "Failed to get friend requests",
     });
   }
 };
 
-// Making the controller for accepting the request
-
+// ACCEPT FRIEND REQUEST
 const acceptFriendRequest = async (req, res) => {
   try {
     const userId = req.user.userId;
     const requestId = req.params.requestId;
 
-    const request = await Connection.findOne({
-      _id: requestId,
-      recevier: userId,
-      status: "pending",
-    });
-
-    if (!request) {
+    if (!isValidId(requestId)) {
       return res.status(400).json({
-        message: "request not found",
+        message: "Invalid request ID",
       });
     }
 
-    request.status = "accepted";
-    await request.save();
+    const request = await Connection.findOneAndUpdate(
+      {
+        _id: requestId,
+        recevier: userId,
+        status: "pending",
+      },
+      { $set: { status: "accepted" } },
+      { new: true }
+    );
 
-    // Notify the person who originally sent the request
+    if (!request) {
+      return res.status(404).json({
+        message: "Pending friend request not found",
+      });
+    }
+
     await createNotification({
       recipient: request.sender,
       sender: userId,
@@ -154,47 +221,55 @@ const acceptFriendRequest = async (req, res) => {
       connection: request,
     });
   } catch (error) {
-    console.log("error in accepting friend request");
-    res.status(500).json({
-      message: "Failed to accept the friend request",
+    console.error("Accept request error:", error);
+
+    return res.status(500).json({
+      message: "Failed to accept friend request",
     });
   }
 };
 
-//Making controller for reject the friend request
-
+// REJECT FRIEND REQUEST
 const rejectFriendRequest = async (req, res) => {
   try {
     const userId = req.user.userId;
     const requestId = req.params.requestId;
 
-    const request = await Connection.findOne({
-      _id: requestId,
-      recevier: userId,
-      status: "pending",
-    });
-
-    if (!request) {
+    if (!isValidId(requestId)) {
       return res.status(400).json({
-        message: "User not found",
+        message: "Invalid request ID",
       });
     }
 
-    request.status = "rejected";
-    await request.save();
+    const request = await Connection.findOneAndUpdate(
+      {
+        _id: requestId,
+        recevier: userId,
+        status: "pending",
+      },
+      { $set: { status: "rejected" } },
+      { new: true }
+    );
 
-    res.status(200).json({
-      message: "Friend request rejected Successfully",
+    if (!request) {
+      return res.status(404).json({
+        message: "Pending friend request not found",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Friend request rejected successfully",
     });
   } catch (error) {
-    console.log("Error in the rejection", error);
-    res.status(500).json({
-      messeage: "Failed to reject the request",
+    console.error("Reject request error:", error);
+
+    return res.status(500).json({
+      message: "Failed to reject friend request",
     });
   }
 };
 
-//Get all my friends
+// GET ACCEPTED FRIENDS
 
 const getMyFriends = async (req, res) => {
   try {
@@ -202,23 +277,25 @@ const getMyFriends = async (req, res) => {
 
     const connections = await Connection.find({
       $or: [
-        {
-          sender: userId,
-          recevier: userId,
-        },
+        { sender: userId },
+        { recevier: userId },
       ],
       status: "accepted",
     })
-      .populate("sender", "fullName,email,role,profilepic")
-      .populate("recevier", "fullName,email,role,profilepic");
+      .populate("sender", "fullName email role profilepic")
+      .populate("recevier", "fullName email role profilepic");
 
-    const friends = connections.map((connection) => {
-      if (connection.sender._id.toString() === userId.toString()) {
-        return connection.recevier;
-      }
+    const friends = connections
+      .map((connection) => {
+        if (
+          connection.sender?._id.toString() === userId.toString()
+        ) {
+          return connection.recevier;
+        }
 
-      return connection.sender;
-    });
+        return connection.sender;
+      })
+      .filter(Boolean);
 
     return res.status(200).json({
       friends,
@@ -228,12 +305,13 @@ const getMyFriends = async (req, res) => {
 
     return res.status(500).json({
       message: "Failed to get friends",
-      error: error.message,
     });
   }
 };
 
+
 module.exports = {
+  getCommunityUsers,
   sendFriendRequest,
   getFriendRequest,
   acceptFriendRequest,

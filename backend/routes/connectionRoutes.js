@@ -1,13 +1,45 @@
+
 const express = require("express");
+
 const authMiddleware = require("../middlewares/authmiddleware");
-const { sendFriendRequest, getFriendRequest, acceptFriendRequest, rejectFriendRequest, getMyFriends } = require("../controllers/connectionController");
+
+const {
+  getCommunityUsers,
+  sendFriendRequest,
+  getFriendRequest,
+  acceptFriendRequest,
+  rejectFriendRequest,
+  getMyFriends,
+} = require("../controllers/connectionController");
+
+const {
+  getPublicProfile,
+} = require("../controllers/publicProfileController");
 
 const router = express.Router();
 
-router.post("/sendrequest/:userId",authMiddleware,sendFriendRequest);
-router.get("/getrequest",authMiddleware,getFriendRequest);
-router.put("/acceptrequest/:requestId",authMiddleware,acceptFriendRequest);
-router.put("/rejectrequest/:requestId",authMiddleware,rejectFriendRequest);
-router.get("/getfriends",authMiddleware,getMyFriends);
+// Protect all connection routes
+router.use(authMiddleware);
 
-module.exports=router;
+// Get all registered users with connection status
+router.get("/users", getCommunityUsers);
+
+// Get a registered user's public profile
+router.get("/profile/:userId", getPublicProfile);
+
+// Send friend request
+router.post("/sendrequest/:userId", sendFriendRequest);
+
+// Get incoming pending requests
+router.get("/getrequest", getFriendRequest);
+
+// Accept friend request
+router.put("/acceptrequest/:requestId", acceptFriendRequest);
+
+// Reject friend request
+router.put("/rejectrequest/:requestId", rejectFriendRequest);
+
+// Get accepted friends
+router.get("/getfriends", getMyFriends);
+
+module.exports = router;

@@ -17,6 +17,7 @@ import Jobs from "./pages/main/Job";
 import Friend from "./pages/main/Friend";
 import MyProfile from "./pages/main/MyProfile";
 import Notification from "./pages/main/Notification";
+import ViewProfile from "./pages/main/ViewProfile";
 
 const router = createBrowserRouter([
   {
@@ -98,6 +99,10 @@ const router = createBrowserRouter([
       {
         path:"profile",
         element:<MyProfile/>
+      },
+       {
+        path:"profile/:userId",
+        element:<ViewProfile/>
       }
     ]
   }
