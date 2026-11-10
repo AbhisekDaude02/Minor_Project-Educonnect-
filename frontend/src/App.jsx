@@ -9,8 +9,6 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import Team from "./pages/Team";
 import { Toaster } from "react-hot-toast";
-import { useContext } from "react";
-import { AuthContext } from "./context/authContext";
 import ProtectedLayout from "./layouts/ProtectedLayout";
 import Message from "./pages/main/Message";
 import Feed from "./pages/main/Feed";
@@ -18,6 +16,7 @@ import Note from "./pages/main/Note";
 import Jobs from "./pages/main/Job";
 import Friend from "./pages/main/Friend";
 import MyProfile from "./pages/main/MyProfile";
+import Notification from "./pages/main/Notification";
 
 const router = createBrowserRouter([
   {

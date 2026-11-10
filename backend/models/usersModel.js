@@ -1,65 +1,165 @@
+
 const mongoose = require("mongoose");
 
-//User schema
+// User Schema
 const userSchema = new mongoose.Schema({
- fullName:{
-    type:String,
-    required:true,
-    trim:true
- },
 
- email:{
-    type:String,
-    required:true,
-    unique:true,
-    trim:true,
-    lowercase:true
- },
- password:{
-    type:String,
-    required:true,
-    
- },
- role:{
-    type:String,
-    enum:["student","professional"],
-    default:"student"
- },
+    // =================================
+    // COMMON USER INFORMATION
+    // =================================
 
- isverified:{
-   type:Boolean,
-   default:false
- },
-isLogging:{
-   type:Boolean,
-   default:false
-},
+    fullName: {
+        type: String,
+        required: true,
+        trim: true
+    },
 
-profilepic:{
-   type:String,
-   default:""
-},
- verificationToken:{
-   type:String,
+    email: {
+        type: String,
+        required: true,
+        unique: true,
+        trim: true,
+        lowercase: true
+    },
 
- },
- verificationTokenExpires:{
-   type:Date,
- },
+    password: {
+        type: String,
+        required: true
+    },
 
- resetToken:{
-   type:String,
+    role: {
+        type: String,
+        enum: ["student", "professional"],
+        default: "student"
+    },
 
- },
- resetTokenExpires:{
-   type:Date
- }
-},{timestamps:true})
+    profilepic: {
+        type: String,
+        default: ""
+    },
+
+    location: {
+        type: String,
+        default: ""
+    },
+
+    bio: {
+        type: String,
+        maxlength: 500,
+        default: ""
+    },
+
+    website: {
+        type: String,
+        default: ""
+    },
+
+    linkedin: {
+        type: String,
+        default: ""
+    },
+
+    github: {
+        type: String,
+        default: ""
+    },
+
+    // =================================
+    // STUDENT INFORMATION
+    // =================================
+
+    university: {
+        type: String,
+        default: ""
+    },
+
+    program: {
+        type: String,
+        default: ""
+    },
+
+    semester: {
+        type: String,
+        default: ""
+    },
+
+    // =================================
+    // PROFESSIONAL INFORMATION
+    // =================================
+
+    jobTitle: {
+        type: String,
+        default: ""
+    },
+
+    company: {
+        type: String,
+        default: ""
+    },
+
+    experienceLevel: {
+        type: String,
+        enum: [
+            "",
+            "Fresher",
+            "Intern",
+            "Junior",
+            "Mid-Level",
+            "Senior",
+            "Expert"
+        ],
+        default: ""
+    },
+
+    skills: {
+        type: [String],
+        default: []
+    },
+
+    // =================================
+    // ACCOUNT INFORMATION
+    // =================================
+
+    isverified: {
+        type: Boolean,
+        default: false
+    },
+
+    isLogging: {
+        type: Boolean,
+        default: false
+    },
+
+    // =================================
+    // EMAIL VERIFICATION
+    // =================================
+
+    verificationToken: {
+        type: String
+    },
+
+    verificationTokenExpires: {
+        type: Date
+    },
+
+    // =================================
+    // PASSWORD RESET
+    // =================================
+
+    resetToken: {
+        type: String
+    },
+
+    resetTokenExpires: {
+        type: Date
+    }
+
+}, {
+    timestamps: true
+});
 
 // Creating the model
+const User = mongoose.model("User", userSchema);
 
-const User = mongoose.model("User",userSchema);
-
-// Exporting this model
-
+// Exporting the model
 module.exports = User;

@@ -1,59 +1,58 @@
 //User Registration controller
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
-const jwt = require("jsonwebtoken")
+const jwt = require("jsonwebtoken");
 
 const User = require("../models/usersModel");
 const sendEmail = require("../utils/SendEmail");
 
-const userRegister = async (req,res)=>{
-    try {
-        const {fullName,email,password,role} = req.body;
-//checking whether the user is fill all the field or not 
-        if(!fullName || !email || !password || !role){
-          return  res.status(500).json({
-                message:"All the field are required"
-            })
-        }
-// checking for the existing user from the email
+const userRegister = async (req, res) => {
+  try {
+    const { fullName, email, password, role } = req.body;
+    //checking whether the user is fill all the field or not
+    if (!fullName || !email || !password || !role) {
+      return res.status(500).json({
+        message: "All the field are required",
+      });
+    }
+    // checking for the existing user from the email
 
-const existingUser = await User.findOne({email});
-if(existingUser){
-    return res.status(409).json({
-        message:"The user is already exist please login"
-    })
-}
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(409).json({
+        message: "The user is already exist please login",
+      });
+    }
 
-// Hashing the user password
-const hashPassword = await bcrypt.hash(password,12);
+    // Hashing the user password
+    const hashPassword = await bcrypt.hash(password, 12);
 
-//Creating the verification token
-const verificationToken = crypto.randomBytes(36).toString('hex');
+    //Creating the verification token
+    const verificationToken = crypto.randomBytes(36).toString("hex");
 
-//Creating the verifiationToken expires
+    //Creating the verifiationToken expires
 
-const verificationTokenExpires = new Date(Date.now()+50*60*1000)
+    const verificationTokenExpires = new Date(Date.now() + 50 * 60 * 1000);
 
-// creating the user in the database
-const user =await User.create({
-    fullName,
-    email,
-    password:hashPassword,
-    role,
-    isverified:false,
-    verificationToken,
-    verificationTokenExpires
+    // creating the user in the database
+    const user = await User.create({
+      fullName,
+      email,
+      password: hashPassword,
+      role,
+      isverified: false,
+      verificationToken,
+      verificationTokenExpires,
+    });
 
-});
+    //creating the verification url
+    const verificationUrl = `${process.env.SERVER_URL}/api/auth/verifyemail/${verificationToken}`;
 
-//creating the verification url
-const verificationUrl = `${process.env.SERVER_URL}/api/auth/verifyemail/${verificationToken}`
-
-//Sending the email to the user to verify the email
-await sendEmail(
-    email,
-    "Verify your Educonnect account",
-    `<h2>Welcome to Educonnect, ${fullName}!</h2>
+    //Sending the email to the user to verify the email
+    await sendEmail(
+      email,
+      "Verify your Educonnect account",
+      `<h2>Welcome to Educonnect, ${fullName}!</h2>
 
         <p>Thank you for registering.</p>
 
@@ -74,244 +73,233 @@ await sendEmail(
         </a>
 
         <p>This verification link expires in 15 minutes.</p>
-        `
-)
-return res.status(201).json({
-    message:"User are created sucessfull.check your email to verify",
-    user:user
-})
-
-
-    } catch (error) {
-        console.log("REGISTRATION ERROR:", error);
+        `,
+    );
+    return res.status(201).json({
+      message: "User are created sucessfull.check your email to verify",
+      user: user,
+    });
+  } catch (error) {
+    console.log("REGISTRATION ERROR:", error);
 
     return res.status(500).json({
-        message: "Failed to create the user",
-        error: error.message
+      message: "Failed to create the user",
+      error: error.message,
     });
-    }
-}
-
+  }
+};
 
 // Creating the controller for verifying the user
 
-const verifyEmail = async (req,res)=>{
-    try {
-        const {token} = req.params;
+const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.params;
 
-        const user =  await User.findOne({
-            verificationToken:token,
-            verificationTokenExpires:{
-                $gt: new Date()
-            }
-        })
+    const user = await User.findOne({
+      verificationToken: token,
+      verificationTokenExpires: {
+        $gt: new Date(),
+      },
+    });
 
-        if(!user){
-            return res.status(400).json({
-                message:"verification fail or verification Expires"
-            })
-        }
-
-        user.isverified = true;
-        user.verificationToken = undefined;
-        user.verificationTokenExpires = undefined;
-
-        await user.save();
-
-        res.status(201).json({
-            message:"Email verifies successfully go to the login"
-        })
-    } catch (error) {
-        res.status(500).json({
-            message:error.message
-        })
-        
+    if (!user) {
+      return res.status(400).json({
+        message: "verification fail or verification Expires",
+      });
     }
-}
+
+    user.isverified = true;
+    user.verificationToken = undefined;
+    user.verificationTokenExpires = undefined;
+
+    await user.save();
+
+    res.status(201).json({
+      message: "Email verifies successfully go to the login",
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
 
 // Creating the Login of the user
 
-const loginUser = async (req,res)=>{
-    try {
-        const {email,password} =req.body;
+const loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
 
-
-    if(!email|| !password){
-        return res.status(400).json({
-            message:"field is missing",
-        })
+    if (!email || !password) {
+      return res.status(400).json({
+        message: "field is missing",
+      });
     }
 
-    // Verify whether the user is verified or not 
+    // Verify whether the user is verified or not
 
-    const user = await User.findOne({email});
-    if(!user){
-        return res.status(400).json({
-            message:"invalid field!!"
-        })
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({
+        message: "invalid field!!",
+      });
     }
 
-    if(!user.isverified){
-        return res.status(403).json({
-            message:"Please verify your email !!"
-        })
+    if (!user.isverified) {
+      return res.status(403).json({
+        message: "Please verify your email !!",
+      });
     }
 
-    const iscorrectPassword = await bcrypt.compare(password,user.password);
+    const iscorrectPassword = await bcrypt.compare(password, user.password);
 
-    if(!iscorrectPassword){
-        return res.status(400).json({
-            message:"invalid password !!"
-        })
+    if (!iscorrectPassword) {
+      return res.status(400).json({
+        message: "invalid password !!",
+      });
     }
-    
+
     //Creating the jwttoken
 
     const token = jwt.sign(
-        {
-            userId:user._id
-        },
-        process.env.JWT_SECRET_KEY,
-        {
-            expiresIn:"7d"
-        }
-    )
-    
-   //Saving to the cookies
+      {
+        userId: user._id,
+      },
+      process.env.JWT_SECRET_KEY,
+      {
+        expiresIn: "7d",
+      },
+    );
 
-  res.cookie("token",token,{
-    httpOnly:true,
-    secure:process.env.NODE_ENV ==="production",
-    sameSite:process.env.NODE_ENV === "production"?"none":"lax",
-    maxAge: 7 * 24 *60 *60 *1000
-  });
-  user.isLogging = true
-  await user.save();
-  res.status(200).json({
-    message:"Login successfully !!",
-    user:{
-        id:user._id,
-        email:user.email,
-        name:user.fullName,
-        isLogging:user.isLogging,
-        isverified:user.isverified
-        
-    }
-  })
+    //Saving to the cookies
 
-    } catch (error) {
-        res.status(500).json({
-            message:error.message
-        })
-    }
-}
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+    //   user.isLogging = true
+    //   await user.save();
+    res.status(200).json({
+      message: "Login successfully !!",
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.fullName,
+        isLogging: user.isLogging,
+        isverified: user.isverified,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
 
 // Logout the user
-const userLogout = async(req,res)=>{
-    try {
-        res.clearCookie("token",{
-            httpOnly:true,
-            secure:process.env.NODE_ENV ="production",
-            sameSite:process.env.NODE_ENV = "production"? "none":"lax"
-        })
+const userLogout = async (req, res) => {
+  try {
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    });
 
-       return res.status(200).json({
-            message:"User logout successfully !!"
-        })
-        
-    } catch (error) {
-        console.log(error);
-        
-        res.status(500).json({
-            message:"Failed to logout the user"
-        })
-    }
-}
+    return res.status(200).json({
+      message: "User logout successfully !!",
+    });
+  } catch (error) {
+    console.log(error);
 
-
+    res.status(500).json({
+      message: "Failed to logout the user",
+    });
+  }
+};
 
 // Get currently logged-in user
 
 const getLoggedInUser = async (req, res) => {
-    try {
-        // Get user ID from authMiddleware
-        const userId = req.user.userId;
+  try {
+    // Get user ID from authMiddleware
+    const userId = req.user.userId;
 
-        // Find user from MongoDB
-        const user = await User.findById(userId)
-            .select("-password -verificationToken -resetToken");
+    // Find user from MongoDB
+    const user = await User.findById(userId).select(
+      "-password -verificationToken -resetToken",
+    );
 
-        if (!user) {
-            return res.status(404).json({
-                success: false,
-                message: "User not found"
-            });
-        }
-
-        return res.status(200).json({
-            success: true,
-            message: "User information fetched successfully",
-            user
-        });
-
-    } catch (error) {
-        console.log("GET LOGGED IN USER ERROR:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to fetch user information"
-        });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
     }
+
+    return res.status(200).json({
+      success: true,
+      message: "User information fetched successfully",
+      user,
+    });
+  } catch (error) {
+    console.log("GET LOGGED IN USER ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch user information",
+    });
+  }
 };
 
 //Get All the user
 
-const getAllUser = async (req,res)=>{
-    try {
-        const user = await User.find();
-        res.status(200).json({
-            message:"All the user are fetch successfully",
-            users:user
-        });
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({
-            message:"Failed to get the users",
-            error:error.message
-        })
-        
-    }
-}
+const getAllUser = async (req, res) => {
+  try {
+    const user = await User.find();
+    res.status(200).json({
+      message: "All the user are fetch successfully",
+      users: user,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      message: "Failed to get the users",
+      error: error.message,
+    });
+  }
+};
 
 // Making the controller to forget the password
 
-const forgetPassword = async (req,res)=>{
-    try {
-        const {email} = req.body;
+const forgetPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
 
-        const user = await User.findOne({email});
+    const user = await User.findOne({ email });
 
-        if(!user){
-            return res.status(400).json({
-                message:"User not found"
-            })
-        }
+    if (!user) {
+      return res.status(400).json({
+        message: "User not found",
+      });
+    }
 
-        if(user.isverified !== true){
-            return res.status(400).json({
-                message:"You are not verfied user"
-            })
-        }
+    if (user.isverified !== true) {
+      return res.status(400).json({
+        message: "You are not verfied user",
+      });
+    }
 
-        const resetToken = crypto.randomBytes(36).toString('hex');
-        const resetTokenExpires = new Date(Date.now() + 50 * 60 *1000);
-        const resetURL = `http://localhost:3000/api/auth/resetpass/${resetToken}`;
+    const resetToken = crypto.randomBytes(36).toString("hex");
+    const resetTokenExpires = new Date(Date.now() + 50 * 60 * 1000);
+    const resetURL = `http://localhost:3000/api/auth/resetpass/${resetToken}`;
 
-        await sendEmail(
-            email,
-            "Click to reset the password from Eduonnect",
+    await sendEmail(
+      email,
+      "Click to reset the password from Eduonnect",
 
-           `<h2>Welcome to Educonnect, ${user.fullName}!</h2>
+      `<h2>Welcome to Educonnect, ${user.fullName}!</h2>
 
         <p>Thank you for registering.</p>
 
@@ -332,83 +320,172 @@ const forgetPassword = async (req,res)=>{
         </a>
 
         <p>This verification link expires in 15 minutes.</p>
-        `
-        )
-        
- user.resetToken = resetToken;
- user.resetTokenExpires = resetTokenExpires;
+        `,
+    );
 
- await user.save();
+    user.resetToken = resetToken;
+    user.resetTokenExpires = resetTokenExpires;
 
- return res.status(200).json({
-    message:"email sent successfully to the use check your mail",
-    user
+    await user.save();
 
- })
+    return res.status(200).json({
+      message: "email sent successfully to the use check your mail",
+      user,
+    });
+  } catch (error) {
+    console.log("Error in forgetPassword", error);
 
-    } catch (error) {
-
-        console.log("Error in forgetPassword",error);
-
-        return res.status(500).json({
-            message:"Failed to do forget password",
-            error:error.message
-        })
-        
-        
-    }
-}
+    return res.status(500).json({
+      message: "Failed to do forget password",
+      error: error.message,
+    });
+  }
+};
 
 // Making the controller to reset the password
 
-const resetPassword = async (req,res)=>{
-    try {
-        const {token} = req.params;
-        const {newPassword,confirmPassword} = req.body;
+const resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { newPassword, confirmPassword } = req.body;
 
-        if(!newPassword || !confirmPassword){
-            return res.status(400).json({
-                message:"The field are required"
-            })
-        }
-
-        if(newPassword !== confirmPassword){
-            return res.status(400).json({
-                message:"Both the newPassword and confirmPassword"
-            })
-        }
-
-        const user = await User.findOne({
-            resetToken:token,
-            resetTokenExpires:{$gt:new Date()}
-        });
-
-        if(!user){
-            return res.status(400).json({
-                message:"user not found with this token"
-            })
-        }
-
-        const hashPassword = await bcrypt.hash(newPassword,12);
-
-        user.password = hashPassword;
-
-        user.resetToken = undefined;
-        user.resetTokenExpires = undefined;
-
-        await user.save();
-        return res.status(200).json({
-            message:"Password reset successfully",
-            user
-        })
-    } catch (error) {
-        console.log("Error in resting the password",error);
-        return res.status(500).json({
-            message:"Failed to reset the password",
-            error:error.message
-        })
-        
-        
+    if (!newPassword || !confirmPassword) {
+      return res.status(400).json({
+        message: "The field are required",
+      });
     }
-}
-module.exports ={ userRegister,verifyEmail,loginUser,userLogout,getLoggedInUser,getAllUser,forgetPassword,resetPassword};
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        message: "Both the newPassword and confirmPassword",
+      });
+    }
+
+    const user = await User.findOne({
+      resetToken: token,
+      resetTokenExpires: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        message: "user not found with this token",
+      });
+    }
+
+    const hashPassword = await bcrypt.hash(newPassword, 12);
+
+    user.password = hashPassword;
+
+    user.resetToken = undefined;
+    user.resetTokenExpires = undefined;
+
+    await user.save();
+    return res.status(200).json({
+      message: "Password reset successfully",
+      user,
+    });
+  } catch (error) {
+    console.log("Error in resting the password", error);
+    return res.status(500).json({
+      message: "Failed to reset the password",
+      error: error.message,
+    });
+  }
+};
+
+const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    const {
+      fullName,
+      location,
+      bio,
+      website,
+      linkedin,
+      github,
+      university,
+      program,
+      semester,
+      jobTitle,
+      company,
+      experienceLevel,
+      skills,
+    } = req.body;
+
+    // Common profile fields
+    if (fullName !== undefined) user.fullName = fullName.trim();
+    if (location !== undefined) user.location = location;
+    if (bio !== undefined) user.bio = bio;
+    if (website !== undefined) user.website = website;
+    if (linkedin !== undefined) user.linkedin = linkedin;
+    if (github !== undefined) user.github = github;
+
+    // Student fields
+    if (user.role === "student") {
+      if (university !== undefined) user.university = university;
+      if (program !== undefined) user.program = program;
+      if (semester !== undefined) user.semester = semester;
+    }
+
+    // Professional fields
+    if (user.role === "professional") {
+      if (jobTitle !== undefined) user.jobTitle = jobTitle;
+      if (company !== undefined) user.company = company;
+      if (experienceLevel !== undefined) {
+        user.experienceLevel = experienceLevel;
+      }
+    }
+
+    // Skills
+    if (skills !== undefined) {
+      user.skills = Array.isArray(skills) ? skills : JSON.parse(skills);
+    }
+
+    // Profile picture
+    if (req.file) {
+      user.profilepic = req.file.path;
+    }
+
+    await user.save();
+
+    const updatedUser = user.toObject();
+
+    delete updatedUser.password;
+    delete updatedUser.verificationToken;
+    delete updatedUser.resetToken;
+
+    return res.status(200).json({
+      message: "Profile updated successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Update profile error:", error);
+
+    return res.status(500).json({
+      message: "Failed to update profile",
+      error: error.message,
+    });
+  }
+};
+
+
+module.exports = {
+  userRegister,
+  updateProfile,
+  verifyEmail,
+  loginUser,
+  userLogout,
+  getLoggedInUser,
+  getAllUser,
+  forgetPassword,
+  resetPassword,
+};

@@ -1,5 +1,4 @@
 import React, { useContext, useEffect, useRef, useState } from "react";
-
 import { NavLink } from "react-router-dom";
 
 import {
@@ -40,6 +39,12 @@ import {
 } from "../../services/feedServices";
 
 // ============================================
+// DEFAULT AVATAR
+// ============================================
+
+const DEFAULT_AVATAR = "https://i.pravatar.cc/150?img=12";
+
+// ============================================
 // TRENDING TOPICS
 // ============================================
 
@@ -69,16 +74,20 @@ const sidebarLinks = [
 // HELPER FUNCTIONS
 // ============================================
 
+// Get posts from API response
 const getResponsePosts = (response) => {
   const data = response?.data;
 
   if (Array.isArray(data)) return data;
+
   if (Array.isArray(data?.post)) return data.post;
+
   if (Array.isArray(data?.posts)) return data.posts;
 
   return [];
 };
 
+// Safely get user ID
 const getUserId = (value) => {
   if (!value) return "";
 
@@ -89,18 +98,31 @@ const getUserId = (value) => {
   return String(value);
 };
 
+// Safely get a populated user object
+const getSafeUser = (value) => {
+  if (value && typeof value === "object") {
+    return value;
+  }
+
+  return {};
+};
+
+// Format post time
 const formatPostTime = (date) => {
   if (!date) return "Recently";
 
   const postDate = new Date(date);
 
-  if (Number.isNaN(postDate.getTime())) return "Recently";
+  if (Number.isNaN(postDate.getTime())) {
+    return "Recently";
+  }
 
   const difference = Date.now() - postDate.getTime();
 
   const minutes = Math.floor(difference / 60000);
 
   if (minutes < 1) return "Just now";
+
   if (minutes < 60) return `${minutes}m ago`;
 
   const hours = Math.floor(minutes / 60);
@@ -121,14 +143,17 @@ const formatPostTime = (date) => {
 const Feed = ({ currentUser }) => {
   const { users } = useContext(AuthContext);
 
-  // Logged-in user
+  // ============================================
+  // LOGGED-IN USER
+  // ============================================
+
   const user = currentUser || users || {};
 
-  const userId = getUserId(user._id || user.id);
+  const userId = getUserId(user?._id || user?.id);
 
-  const userName = user.fullName || "User";
+  const userName = user?.fullName || "User";
 
-  const userAvatar = user.profilepic || "https://i.pravatar.cc/150?img=12";
+  const userAvatar = user?.profilepic || DEFAULT_AVATAR;
 
   // ============================================
   // STATES
@@ -137,22 +162,30 @@ const Feed = ({ currentUser }) => {
   const [posts, setPosts] = useState([]);
 
   const [loading, setLoading] = useState(true);
+
   const [submitting, setSubmitting] = useState(false);
+
   const [error, setError] = useState("");
 
   // Create post modal
   const [showModal, setShowModal] = useState(false);
+
   const [content, setContent] = useState("");
+
   const [selectedImage, setSelectedImage] = useState(null);
+
   const [preview, setPreview] = useState("");
 
   // Post actions
   const [savedPosts, setSavedPosts] = useState([]);
+
   const [activeMenu, setActiveMenu] = useState(null);
 
   // Comments
   const [openComments, setOpenComments] = useState(null);
+
   const [commentText, setCommentText] = useState({});
+
   const [commentLoading, setCommentLoading] = useState(null);
 
   // Action loading
@@ -160,7 +193,9 @@ const Feed = ({ currentUser }) => {
 
   // References
   const fileInputRef = useRef(null);
+
   const textareaRef = useRef(null);
+
   const previewUrlRef = useRef(null);
 
   // ============================================
@@ -179,13 +214,18 @@ const Feed = ({ currentUser }) => {
 
       const fetchedPosts = getResponsePosts(response);
 
-      setPosts(fetchedPosts);
+      // Remove invalid/null post entries
+      const validPosts = fetchedPosts.filter(
+        (post) => post && typeof post === "object"
+      );
+
+      setPosts(validPosts);
     } catch (error) {
       console.error("Fetch posts error:", error);
 
       setError(
         error.response?.data?.message ||
-          "Unable to load posts. Please try again.",
+          "Unable to load posts. Please try again."
       );
     } finally {
       if (showLoader) {
@@ -193,6 +233,10 @@ const Feed = ({ currentUser }) => {
       }
     }
   };
+
+  // ============================================
+  // INITIAL FETCH
+  // ============================================
 
   useEffect(() => {
     fetchPosts();
@@ -216,12 +260,16 @@ const Feed = ({ currentUser }) => {
     if (submitting) return;
 
     setShowModal(false);
+
     setContent("");
+
     setSelectedImage(null);
+
     setPreview("");
 
     if (previewUrlRef.current) {
       URL.revokeObjectURL(previewUrlRef.current);
+
       previewUrlRef.current = null;
     }
 
@@ -247,12 +295,17 @@ const Feed = ({ currentUser }) => {
 
     if (!file) return;
 
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ];
 
     if (!allowedTypes.includes(file.type)) {
       alert("Only JPG, PNG and WEBP images are allowed.");
 
       e.target.value = "";
+
       return;
     }
 
@@ -260,6 +313,7 @@ const Feed = ({ currentUser }) => {
       alert("Image size must be less than 10MB.");
 
       e.target.value = "";
+
       return;
     }
 
@@ -272,6 +326,7 @@ const Feed = ({ currentUser }) => {
     previewUrlRef.current = imageUrl;
 
     setSelectedImage(file);
+
     setPreview(imageUrl);
   };
 
@@ -282,10 +337,12 @@ const Feed = ({ currentUser }) => {
   const removeImage = () => {
     if (previewUrlRef.current) {
       URL.revokeObjectURL(previewUrlRef.current);
+
       previewUrlRef.current = null;
     }
 
     setSelectedImage(null);
+
     setPreview("");
 
     if (fileInputRef.current) {
@@ -302,6 +359,7 @@ const Feed = ({ currentUser }) => {
 
     if (!content.trim() && !selectedImage) {
       alert("Please write something or upload an image.");
+
       return;
     }
 
@@ -318,13 +376,33 @@ const Feed = ({ currentUser }) => {
 
       await postFeed(formData);
 
-      closeModal();
+      // Close and reset the modal
+      setShowModal(false);
+
+      setContent("");
+
+      setSelectedImage(null);
+
+      setPreview("");
+
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+
+        previewUrlRef.current = null;
+      }
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
 
       await fetchPosts(false);
     } catch (error) {
       console.error("Create post error:", error);
 
-      alert(error.response?.data?.message || "Failed to create post.");
+      alert(
+        error.response?.data?.message ||
+          "Failed to create post."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -335,7 +413,13 @@ const Feed = ({ currentUser }) => {
   // ============================================
 
   const isPostLiked = (post) => {
-    return post.likes?.some((like) => getUserId(like) === userId) || false;
+    if (!Array.isArray(post?.likes)) {
+      return false;
+    }
+
+    return post.likes.some(
+      (like) => getUserId(like) === userId
+    );
   };
 
   // ============================================
@@ -343,9 +427,9 @@ const Feed = ({ currentUser }) => {
   // ============================================
 
   const isPostOwner = (post) => {
-    const authorId = getUserId(post.author);
+    const authorId = getUserId(post?.author);
 
-    return authorId === userId;
+    return authorId === userId && Boolean(userId);
   };
 
   // ============================================
@@ -362,7 +446,10 @@ const Feed = ({ currentUser }) => {
     } catch (error) {
       console.error("Like post error:", error);
 
-      alert(error.response?.data?.message || "Unable to like this post.");
+      alert(
+        error.response?.data?.message ||
+          "Unable to like this post."
+      );
     } finally {
       setActionLoading(null);
     }
@@ -376,7 +463,7 @@ const Feed = ({ currentUser }) => {
     setSavedPosts((prev) =>
       prev.includes(postId)
         ? prev.filter((id) => id !== postId)
-        : [...prev, postId],
+        : [...prev, postId]
     );
   };
 
@@ -385,12 +472,16 @@ const Feed = ({ currentUser }) => {
   // ============================================
 
   const handleEditPost = async (post) => {
-    const updatedContent = window.prompt("Edit your post:", post.content || "");
+    const updatedContent = window.prompt(
+      "Edit your post:",
+      post?.content || ""
+    );
 
     if (updatedContent === null) return;
 
     if (!updatedContent.trim()) {
       alert("Post content cannot be empty.");
+
       return;
     }
 
@@ -407,7 +498,10 @@ const Feed = ({ currentUser }) => {
     } catch (error) {
       console.error("Update post error:", error);
 
-      alert(error.response?.data?.message || "Unable to update post.");
+      alert(
+        error.response?.data?.message ||
+          "Unable to update post."
+      );
     } finally {
       setActionLoading(null);
     }
@@ -419,7 +513,7 @@ const Feed = ({ currentUser }) => {
 
   const handleDeletePost = async (postId) => {
     const confirmDelete = window.confirm(
-      "Are you sure you want to delete this post?",
+      "Are you sure you want to delete this post?"
     );
 
     if (!confirmDelete) return;
@@ -429,13 +523,18 @@ const Feed = ({ currentUser }) => {
 
       await deletePost(postId);
 
-      setPosts((prev) => prev.filter((post) => post._id !== postId));
+      setPosts((prev) =>
+        prev.filter((post) => post?._id !== postId)
+      );
 
       setActiveMenu(null);
     } catch (error) {
       console.error("Delete post error:", error);
 
-      alert(error.response?.data?.message || "Unable to delete post.");
+      alert(
+        error.response?.data?.message ||
+          "Unable to delete post."
+      );
     } finally {
       setActionLoading(null);
     }
@@ -464,7 +563,10 @@ const Feed = ({ currentUser }) => {
     } catch (error) {
       console.error("Add comment error:", error);
 
-      alert(error.response?.data?.message || "Unable to add comment.");
+      alert(
+        error.response?.data?.message ||
+          "Unable to add comment."
+      );
     } finally {
       setCommentLoading(null);
     }
@@ -474,8 +576,13 @@ const Feed = ({ currentUser }) => {
   // DELETE COMMENT
   // ============================================
 
-  const handleDeleteComment = async (postId, commentId) => {
-    const confirmDelete = window.confirm("Delete this comment?");
+  const handleDeleteComment = async (
+    postId,
+    commentId
+  ) => {
+    const confirmDelete = window.confirm(
+      "Delete this comment?"
+    );
 
     if (!confirmDelete) return;
 
@@ -486,7 +593,10 @@ const Feed = ({ currentUser }) => {
     } catch (error) {
       console.error("Delete comment error:", error);
 
-      alert(error.response?.data?.message || "Unable to delete comment.");
+      alert(
+        error.response?.data?.message ||
+          "Unable to delete comment."
+      );
     }
   };
 
@@ -505,18 +615,21 @@ const Feed = ({ currentUser }) => {
   // ============================================
 
   const handleShare = async (post) => {
-    const shareText = post.content || "Check out this Educonnect post!";
+    const author = getSafeUser(post?.author);
+
+    const shareText =
+      post?.content || "Check out this Educonnect post!";
 
     try {
       if (navigator.share) {
         await navigator.share({
-          title: `Post by ${post.author?.fullName || "User"}`,
+          title: `Post by ${author.fullName || "User"}`,
           text: shareText,
           url: window.location.href,
         });
       } else {
         await navigator.clipboard.writeText(
-          `${shareText}\n${window.location.href}`,
+          `${shareText}\n${window.location.href}`
         );
 
         alert("Post link copied!");
@@ -534,6 +647,7 @@ const Feed = ({ currentUser }) => {
 
   return (
     <div className="h-[calc(100vh-80px)] w-full overflow-hidden bg-[#f4f6f9] text-slate-800">
+
       <div
         className="
           mx-auto grid h-full w-full max-w-[1600px]
@@ -543,17 +657,21 @@ const Feed = ({ currentUser }) => {
           xl:justify-center xl:gap-5 xl:px-5
         "
       >
+
         {/* ========================================
             LEFT SIDEBAR
         ======================================== */}
 
         <aside className="hidden h-full min-h-0 lg:block">
+
           <div className="h-full overflow-hidden rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+
             <p className="px-3 pb-4 pt-3 text-xs font-bold uppercase tracking-wider text-slate-400">
               Main Menu
             </p>
 
             <nav className="space-y-2">
+
               {sidebarLinks.map((link) => {
                 const Icon = link.icon;
 
@@ -570,16 +688,25 @@ const Feed = ({ currentUser }) => {
                       }`
                     }
                   >
+
                     <span className="flex items-center gap-3">
+
                       <Icon size={19} />
 
-                      <span className="text-[13px]">{link.name}</span>
+                      <span className="text-[13px]">
+                        {link.name}
+                      </span>
+
                     </span>
+
                   </NavLink>
                 );
               })}
+
             </nav>
+
           </div>
+
         </aside>
 
         {/* ========================================
@@ -592,13 +719,19 @@ const Feed = ({ currentUser }) => {
             space-y-4 overflow-x-hidden overflow-y-auto pr-1
           "
         >
+
           {/* CREATE POST BOX */}
 
           <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+
             <div className="flex items-center gap-3">
+
               <img
                 src={userAvatar}
                 alt="Profile"
+                onError={(e) => {
+                  e.currentTarget.src = DEFAULT_AVATAR;
+                }}
                 className="h-11 w-11 shrink-0 rounded-full border border-slate-100 object-cover"
               />
 
@@ -608,9 +741,11 @@ const Feed = ({ currentUser }) => {
               >
                 What's on your mind, {userName.split(" ")[0]}?
               </button>
+
             </div>
 
             <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
+
               <button
                 onClick={openModal}
                 className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-600 hover:bg-emerald-50 hover:text-emerald-700"
@@ -626,18 +761,25 @@ const Feed = ({ currentUser }) => {
                 <FiPlus size={15} />
                 Create Post
               </button>
+
             </div>
+
           </section>
 
           {/* FEED HEADING */}
 
           <div className="flex items-center justify-between px-1">
+
             <div>
-              <h2 className="text-base font-bold text-slate-800">Your Feed</h2>
+
+              <h2 className="text-base font-bold text-slate-800">
+                Your Feed
+              </h2>
 
               <p className="mt-0.5 text-xs text-slate-500">
                 Discover what your community is sharing
               </p>
+
             </div>
 
             <button
@@ -646,25 +788,34 @@ const Feed = ({ currentUser }) => {
             >
               Latest <FiMoreHorizontal />
             </button>
+
           </div>
 
           {/* LOADING */}
 
           {loading && (
+
             <div className="rounded-2xl border border-slate-100 bg-white p-10 text-center">
+
               <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-emerald-100 border-t-emerald-700" />
 
               <p className="mt-3 text-sm text-slate-500">
                 Loading your feed...
               </p>
+
             </div>
+
           )}
 
           {/* ERROR */}
 
           {!loading && error && (
+
             <div className="rounded-2xl border border-red-100 bg-white p-8 text-center">
-              <p className="text-sm text-red-600">{error}</p>
+
+              <p className="text-sm text-red-600">
+                {error}
+              </p>
 
               <button
                 onClick={() => fetchPosts()}
@@ -672,7 +823,9 @@ const Feed = ({ currentUser }) => {
               >
                 Try Again
               </button>
+
             </div>
+
           )}
 
           {/* ========================================
@@ -682,31 +835,52 @@ const Feed = ({ currentUser }) => {
           {!loading &&
             !error &&
             posts.map((post) => {
-              const author = typeof post.author === "object" ? post.author : {};
+
+              // IMPORTANT:
+              // A populated author can be null when the user
+              // has been deleted or the reference is missing.
+              // Always use getSafeUser() before accessing fields.
+
+              const author = getSafeUser(post?.author);
+
+              const comments = Array.isArray(post?.comments)
+                ? post.comments.filter(Boolean)
+                : [];
+
+              const likes = Array.isArray(post?.likes)
+                ? post.likes
+                : [];
 
               const isLiked = isPostLiked(post);
+
               const isSaved = savedPosts.includes(post._id);
+
               const isOwner = isPostOwner(post);
 
               return (
+
                 <article
                   key={post._id}
                   className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:shadow-md"
                 >
+
                   {/* POST HEADER */}
 
                   <div className="flex items-center justify-between px-4 py-3">
+
                     <div className="flex min-w-0 items-center gap-3">
+
                       <img
-                        src={
-                          author.profilepic ||
-                          "https://i.pravatar.cc/150?img=12"
-                        }
+                        src={author.profilepic || DEFAULT_AVATAR}
                         alt={author.fullName || "User"}
+                        onError={(e) => {
+                          e.currentTarget.src = DEFAULT_AVATAR;
+                        }}
                         className="h-10 w-10 shrink-0 rounded-full object-cover"
                       />
 
                       <div className="min-w-0">
+
                         <h3 className="truncate text-sm font-bold text-slate-800">
                           {author.fullName || "Educonnect User"}
                         </h3>
@@ -715,16 +889,21 @@ const Feed = ({ currentUser }) => {
                           {author.role || "Member"} ·{" "}
                           {formatPostTime(post.createdAt)}
                         </p>
+
                       </div>
+
                     </div>
 
                     {/* POST MENU */}
 
                     <div className="relative">
+
                       <button
                         onClick={() =>
                           setActiveMenu(
-                            activeMenu === post._id ? null : post._id,
+                            activeMenu === post._id
+                              ? null
+                              : post._id
                           )
                         }
                         className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
@@ -733,7 +912,9 @@ const Feed = ({ currentUser }) => {
                       </button>
 
                       {activeMenu === post._id && (
+
                         <div className="absolute right-0 top-9 z-20 w-40 rounded-lg border border-slate-100 bg-white p-1 shadow-lg">
+
                           <button
                             onClick={() => {
                               handleSave(post._id);
@@ -742,11 +923,15 @@ const Feed = ({ currentUser }) => {
                             className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
                           >
                             <FiBookmark size={15} />
+
                             {isSaved ? "Unsave post" : "Save post"}
+
                           </button>
 
                           {isOwner && (
+
                             <>
+
                               <button
                                 onClick={() => handleEditPost(post)}
                                 className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
@@ -762,71 +947,101 @@ const Feed = ({ currentUser }) => {
                                 <FiTrash2 size={15} />
                                 Delete post
                               </button>
+
                             </>
+
                           )}
+
                         </div>
+
                       )}
+
                     </div>
+
                   </div>
 
                   {/* POST CONTENT */}
 
                   {post.content && (
+
                     <div className="px-4 pb-3">
+
                       <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
                         {post.content}
                       </p>
+
                     </div>
+
                   )}
 
                   {/* POST IMAGE */}
 
                   {post.image && (
+
                     <div className="mx-3 mb-2 overflow-hidden rounded-xl bg-slate-50">
+
                       <img
                         src={post.image}
                         alt="Post"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                        }}
                         className="max-h-[450px] w-full object-contain"
                       />
+
                     </div>
+
                   )}
 
                   {/* POST COUNTS */}
 
                   <div className="mx-4 flex items-center justify-between border-b border-slate-100 py-2 text-xs text-slate-500">
+
                     <span className="flex items-center gap-1.5">
+
                       <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-white">
                         <FiHeart size={11} />
                       </span>
 
-                      {post.likes?.length || 0}
+                      {likes.length}
+
                     </span>
 
-                    <span>{post.comments?.length || 0} Comments</span>
+                    <span>
+                      {comments.length} Comments
+                    </span>
+
                   </div>
 
                   {/* POST ACTIONS */}
 
                   <div className="mx-3 flex items-center justify-between py-1">
+
                     <button
                       disabled={actionLoading === post._id}
                       onClick={() => handleLike(post._id)}
                       className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-semibold transition hover:bg-slate-50 disabled:opacity-50 ${
-                        isLiked ? "text-blue-600" : "text-slate-500"
+                        isLiked
+                          ? "text-blue-600"
+                          : "text-slate-500"
                       }`}
                     >
+
                       <FiHeart
                         size={17}
                         fill={isLiked ? "currentColor" : "none"}
                       />
 
                       {isLiked ? "Liked" : "Like"}
+
                     </button>
 
                     <button
                       onClick={() =>
                         setOpenComments(
-                          openComments === post._id ? null : post._id,
+                          openComments === post._id
+                            ? null
+                            : post._id
                         )
                       }
                       className="flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-semibold text-slate-500 hover:bg-slate-50"
@@ -846,12 +1061,15 @@ const Feed = ({ currentUser }) => {
                     <button
                       onClick={() => handleSave(post._id)}
                       className={`rounded-lg p-2 hover:bg-slate-50 ${
-                        isSaved ? "text-emerald-700" : "text-slate-500"
+                        isSaved
+                          ? "text-emerald-700"
+                          : "text-slate-500"
                       }`}
                       title="Bookmark post"
                     >
                       <FiBookmark size={17} />
                     </button>
+
                   </div>
 
                   {/* ========================================
@@ -859,13 +1077,19 @@ const Feed = ({ currentUser }) => {
                   ======================================== */}
 
                   {openComments === post._id && (
+
                     <div className="border-t border-slate-100 p-4">
+
                       {/* COMMENT INPUT */}
 
                       <div className="mb-4 flex gap-2">
+
                         <img
                           src={userAvatar}
                           alt="Profile"
+                          onError={(e) => {
+                            e.currentTarget.src = DEFAULT_AVATAR;
+                          }}
                           className="h-9 w-9 rounded-full object-cover"
                         />
 
@@ -893,51 +1117,71 @@ const Feed = ({ currentUser }) => {
                             commentLoading === post._id ||
                             !commentText[post._id]?.trim()
                           }
-                          onClick={() => handleAddComment(post._id)}
+                          onClick={() =>
+                            handleAddComment(post._id)
+                          }
                           className="rounded-full bg-emerald-700 p-2 text-white hover:bg-emerald-800 disabled:opacity-50"
                         >
                           <FiSend size={15} />
                         </button>
+
                       </div>
 
                       {/* EXISTING COMMENTS */}
 
                       <div className="space-y-4">
-                        {post.comments?.map((comment) => {
-                          const commentUser =
-                            typeof comment.user === "object"
-                              ? comment.user
-                              : {};
+
+                        {comments.map((comment) => {
+
+                          // IMPORTANT:
+                          // comment.user can also be null.
+                          // getSafeUser prevents accessing properties
+                          // of null or undefined.
+
+                          const commentUser = getSafeUser(
+                            comment?.user
+                          );
 
                           const isCommentOwner =
-                            getUserId(comment.user) === userId;
+                            getUserId(comment?.user) === userId &&
+                            Boolean(userId);
 
                           return (
+
                             <div
                               key={comment._id}
                               className="flex items-start gap-2"
                             >
+
                               <img
                                 src={
                                   commentUser.profilepic ||
-                                  "https://i.pravatar.cc/150?img=12"
+                                  DEFAULT_AVATAR
                                 }
-                                alt={commentUser.fullName || "User"}
+                                alt={
+                                  commentUser.fullName || "User"
+                                }
+                                onError={(e) => {
+                                  e.currentTarget.src = DEFAULT_AVATAR;
+                                }}
                                 className="h-8 w-8 rounded-full object-cover"
                               />
 
                               <div className="min-w-0 flex-1 rounded-xl bg-slate-50 p-3">
+
                                 <div className="flex items-center justify-between gap-2">
+
                                   <p className="text-xs font-bold text-slate-800">
                                     {commentUser.fullName || "User"}
                                   </p>
 
                                   {isCommentOwner && (
+
                                     <button
                                       onClick={() =>
                                         handleDeleteComment(
                                           post._id,
-                                          comment._id,
+                                          comment._id
                                         )
                                       }
                                       className="text-slate-400 hover:text-red-600"
@@ -945,33 +1189,49 @@ const Feed = ({ currentUser }) => {
                                     >
                                       <FiTrash2 size={14} />
                                     </button>
+
                                   )}
+
                                 </div>
 
                                 <p className="mt-1 break-words text-xs leading-5 text-slate-600">
                                   {comment.text}
                                 </p>
+
                               </div>
+
                             </div>
+
                           );
+
                         })}
 
-                        {(!post.comments || post.comments.length === 0) && (
+                        {comments.length === 0 && (
+
                           <p className="py-3 text-center text-xs text-slate-400">
                             No comments yet. Start the conversation!
                           </p>
+
                         )}
+
                       </div>
+
                     </div>
+
                   )}
+
                 </article>
+
               );
+
             })}
 
           {/* EMPTY FEED */}
 
           {!loading && !error && posts.length === 0 && (
+
             <div className="rounded-2xl border border-slate-100 bg-white p-10 text-center">
+
               <FiUsers className="mx-auto text-4xl text-slate-300" />
 
               <h3 className="mt-3 text-sm font-bold text-slate-700">
@@ -988,14 +1248,19 @@ const Feed = ({ currentUser }) => {
               >
                 Create your first post
               </button>
+
             </div>
+
           )}
 
           {!loading && !error && posts.length > 0 && (
+
             <div className="py-4 text-center text-xs text-slate-400">
               You're all caught up! 🎉
             </div>
+
           )}
+
         </main>
 
         {/* ========================================
@@ -1003,10 +1268,13 @@ const Feed = ({ currentUser }) => {
         ======================================== */}
 
         <aside className="hidden h-full min-h-0 overflow-hidden xl:block">
+
           <div className="flex h-full flex-col gap-4">
+
             {/* PROMOTION CARD */}
 
             <div className="relative shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-950 via-emerald-800 to-teal-700 p-5 text-white shadow-sm">
+
               <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full border-[22px] border-white/5" />
 
               <FiAward className="relative mb-3 text-3xl text-yellow-300" />
@@ -1027,12 +1295,15 @@ const Feed = ({ currentUser }) => {
               >
                 Explore Resources <FiArrowUpRight />
               </NavLink>
+
             </div>
 
             {/* TRENDING TOPICS */}
 
             <section className="shrink-0 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+
               <div className="mb-4 flex items-center justify-between">
+
                 <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
                   <FiTrendingUp className="text-orange-500" />
                   Trending Topics
@@ -1041,16 +1312,24 @@ const Feed = ({ currentUser }) => {
                 <button className="text-xs font-semibold text-emerald-700">
                   See all
                 </button>
+
               </div>
 
               <div className="space-y-4">
+
                 {trendingTopics.map((topic, index) => (
-                  <div key={topic.name} className="flex items-center gap-3">
+
+                  <div
+                    key={topic.name}
+                    className="flex items-center gap-3"
+                  >
+
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-50 text-xs font-bold text-slate-600">
                       {index + 1}
                     </span>
 
                     <div className="min-w-0 flex-1">
+
                       <p className="truncate text-xs font-semibold text-slate-800">
                         {topic.name}
                       </p>
@@ -1058,18 +1337,26 @@ const Feed = ({ currentUser }) => {
                       <p className="mt-0.5 text-[11px] text-slate-400">
                         {topic.posts}
                       </p>
+
                     </div>
 
                     <FiArrowUpRight
                       size={16}
                       className="shrink-0 text-emerald-600"
                     />
+
                   </div>
+
                 ))}
+
               </div>
+
             </section>
+
           </div>
+
         </aside>
+
       </div>
 
       {/* ========================================
@@ -1077,23 +1364,29 @@ const Feed = ({ currentUser }) => {
       ======================================== */}
 
       {showModal && (
+
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-950/50 px-3 py-5 backdrop-blur-[3px]"
           onClick={closeModal}
         >
+
           <div
             className="my-auto w-full max-w-[680px] overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
+
             {/* MODAL HEADER */}
 
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+
               <div className="flex items-center gap-3">
+
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
                   <FiPlus size={22} />
                 </div>
 
                 <div>
+
                   <h2 className="text-lg font-bold text-slate-900">
                     Create Post
                   </h2>
@@ -1101,7 +1394,9 @@ const Feed = ({ currentUser }) => {
                   <p className="text-xs text-slate-500">
                     Share something with your community
                   </p>
+
                 </div>
+
               </div>
 
               <button
@@ -1111,34 +1406,48 @@ const Feed = ({ currentUser }) => {
               >
                 <FiX size={20} />
               </button>
+
             </div>
 
             <form onSubmit={handleCreatePost}>
+
               <div className="p-5">
+
                 {/* USER */}
 
                 <div className="mb-4 flex items-center gap-3">
+
                   <img
                     src={userAvatar}
                     alt="Profile"
+                    onError={(e) => {
+                      e.currentTarget.src = DEFAULT_AVATAR;
+                    }}
                     className="h-11 w-11 rounded-full object-cover"
                   />
 
                   <div>
+
                     <h3 className="text-sm font-bold text-slate-800">
                       {userName}
                     </h3>
 
                     <span className="mt-1 inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+
                       <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+
                       Public
+
                     </span>
+
                   </div>
+
                 </div>
 
                 {/* CAPTION */}
 
                 <div className="relative">
+
                   <textarea
                     ref={textareaRef}
                     value={content}
@@ -1151,12 +1460,15 @@ const Feed = ({ currentUser }) => {
                   <span className="absolute bottom-3 right-4 text-[11px] text-slate-400">
                     {content.length}/500
                   </span>
+
                 </div>
 
                 {/* IMAGE PREVIEW */}
 
                 {preview && (
+
                   <div className="relative mt-4 overflow-hidden rounded-xl border border-slate-200">
+
                     <img
                       src={preview}
                       alt="Selected preview"
@@ -1170,16 +1482,20 @@ const Feed = ({ currentUser }) => {
                     >
                       <FiTrash2 size={16} />
                     </button>
+
                   </div>
+
                 )}
 
                 {/* IMAGE UPLOAD */}
 
                 {!preview && (
+
                   <label
                     htmlFor="post-image"
                     className="mt-4 flex min-h-[130px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 px-4 py-5 text-center transition hover:border-emerald-400 hover:bg-emerald-50/40"
                   >
+
                     <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
                       <FiImage size={22} />
                     </div>
@@ -1195,7 +1511,9 @@ const Feed = ({ currentUser }) => {
                     <p className="mt-1 text-[11px] text-slate-400">
                       JPG, PNG, WEBP · Maximum 10MB
                     </p>
+
                   </label>
+
                 )}
 
                 <input
@@ -1210,7 +1528,9 @@ const Feed = ({ currentUser }) => {
                 {/* MODAL TOOLS */}
 
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+
                   <div className="flex items-center gap-2">
+
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
@@ -1228,19 +1548,25 @@ const Feed = ({ currentUser }) => {
                       <FiSmile className="text-amber-500" size={16} />
                       Emoji
                     </button>
+
                   </div>
 
                   {selectedImage && (
+
                     <span className="max-w-[150px] truncate text-[11px] text-emerald-700">
                       {selectedImage.name}
                     </span>
+
                   )}
+
                 </div>
+
               </div>
 
               {/* MODAL FOOTER */}
 
               <div className="flex items-center justify-end gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4">
+
                 <button
                   type="button"
                   onClick={closeModal}
@@ -1252,17 +1578,27 @@ const Feed = ({ currentUser }) => {
 
                 <button
                   type="submit"
-                  disabled={submitting || (!content.trim() && !selectedImage)}
+                  disabled={
+                    submitting ||
+                    (!content.trim() && !selectedImage)
+                  }
                   className="flex items-center justify-center gap-2 rounded-lg bg-emerald-700 px-6 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
+
                   <FiSend size={15} />
 
                   {submitting ? "Publishing..." : "Post"}
+
                 </button>
+
               </div>
+
             </form>
+
           </div>
+
         </div>
+
       )}
 
       {/* ========================================
@@ -1270,6 +1606,7 @@ const Feed = ({ currentUser }) => {
       ======================================== */}
 
       <style>{`
+
         .feed-scroll {
           scrollbar-width: thin;
           scrollbar-color: #cbd5e1 transparent;
@@ -1291,7 +1628,9 @@ const Feed = ({ currentUser }) => {
         .feed-scroll::-webkit-scrollbar-thumb:hover {
           background: #94a3b8;
         }
+
       `}</style>
+
     </div>
   );
 };

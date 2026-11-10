@@ -1,9 +1,12 @@
-const User = require("../models/usersModel");
 const Post = require("../models/postModel");
-const { post } = require("../routes/connectionRoutes");
 const { cloudinary } = require("../utils/cloudinary");
 
-// Making the controller for post
+const notifyFriends = require("../utils/notifyFriends");
+const createNotification = require("../utils/createNotification");
+
+// ======================================
+// CREATE POST
+// ======================================
 
 const createPost = async (req, res) => {
   try {
@@ -27,10 +30,10 @@ const createPost = async (req, res) => {
           },
           (error, result) => {
             if (error) {
-              reject(error);
-            } else {
-              resolve(result);
+              return reject(error);
             }
+
+            resolve(result);
           },
         );
 
@@ -46,10 +49,24 @@ const createPost = async (req, res) => {
       image: imageUrl,
     });
 
+    // Notify accepted friends about the new post
+    await notifyFriends({
+      userId: req.user.userId,
+      type: "new_post",
+      message: "shared a new post",
+      referenceId: newPost._id,
+      referenceModel: "Post",
+      io: req.app.get("io"),
+    });
+
+    const populatedPost = await Post.findById(newPost._id)
+      .populate("author", "fullName email role profilepic")
+      .populate("comments.user", "fullName profilepic");
+
     return res.status(201).json({
       success: true,
       message: "Post created successfully",
-      post: newPost,
+      post: populatedPost,
     });
   } catch (error) {
     console.error("Create post error:", error);
@@ -61,67 +78,73 @@ const createPost = async (req, res) => {
   }
 };
 
-//Making the controller to get all the post
+// ======================================
+// GET ALL POSTS
+// ======================================
+
 const getAllPost = async (req, res) => {
   try {
-    const post = await Post.find()
+    const posts = await Post.find()
       .populate("author", "fullName email role profilepic")
       .populate("comments.user", "fullName profilepic")
       .sort({ createdAt: -1 });
 
-    if (!post) {
-      return res.status(200).json({
-        message: "Post not Found",
-      });
-    }
-
-    res.status(200).json({
-      message: "All the post are fetch successfully",
-      post,
+    return res.status(200).json({
+      success: true,
+      message: "All posts fetched successfully",
+      posts,
     });
   } catch (error) {
-    console.log("Error in the fetching Post", error.message);
+    console.error("Error fetching posts:", error);
 
-    res.status(500).json({
-      message: "Failed to fetch the post",
-    });
-  }
-};
-
-//Making the controller to get the one post
-
-const getOnePost = async (req, res) => {
-  try {
-    const postId = req.params.postId;
-    const onePost = await Post.findById(postId)
-      .populate("author", "fullName email role profilepic")
-      .populate("comments.user", "fullName profilepic");
-
-    if (!onePost) {
-      return res.status(400).json({
-        message: "Post not found",
-      });
-    }
-    res.status(200).json({
-      message: "Post fetch successfully",
-      onePost,
-    });
-  } catch (error) {
-    console.log("Error in finding the one post");
-    res.status(500).json({
-      message: "Failed to get the one post",
+    return res.status(500).json({
+      message: "Failed to fetch posts",
       error: error.message,
     });
   }
 };
 
-//Making the controller to update the content
+// ======================================
+// GET ONE POST
+// ======================================
+
+const getOnePost = async (req, res) => {
+  try {
+    const postId = req.params.postId;
+
+    const onePost = await Post.findById(postId)
+      .populate("author", "fullName email role profilepic")
+      .populate("comments.user", "fullName profilepic");
+
+    if (!onePost) {
+      return res.status(404).json({
+        message: "Post not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Post fetched successfully",
+      onePost,
+    });
+  } catch (error) {
+    console.error("Error finding post:", error);
+
+    return res.status(500).json({
+      message: "Failed to get the post",
+      error: error.message,
+    });
+  }
+};
+
+// ======================================
+// UPDATE POST
+// ======================================
 
 const updatePost = async (req, res) => {
   try {
     const userId = req.user.userId;
     const postId = req.params.postId;
-
     const { content } = req.body;
 
     if (!content || content.trim() === "") {
@@ -129,17 +152,18 @@ const updatePost = async (req, res) => {
         message: "Content is required",
       });
     }
+
     const post = await Post.findById(postId);
 
     if (!post) {
-      return res.status(400).json({
-        message: "post not fount",
+      return res.status(404).json({
+        message: "Post not found",
       });
     }
 
     if (post.author.toString() !== userId.toString()) {
-      return res.status(400).json({
-        message: "You are not allowed to update the post",
+      return res.status(403).json({
+        message: "You are not allowed to update this post",
       });
     }
 
@@ -151,42 +175,51 @@ const updatePost = async (req, res) => {
       .populate("comments.user", "fullName profilepic");
 
     return res.status(200).json({
-      message: "post updated successfully",
+      success: true,
+      message: "Post updated successfully",
       post: updatedPost,
     });
   } catch (error) {
-    console.log("Error in updatepost");
-    res.status(500).json({
+    console.error("Update post error:", error);
+
+    return res.status(500).json({
       message: "Failed to update the post",
       error: error.message,
     });
   }
 };
 
-// making the controller to get my own feed or post
+// ======================================
+// GET MY OWN POSTS
+// ======================================
 
 const getMyfeed = async (req, res) => {
   try {
     const userId = req.user.userId;
+
     const posts = await Post.find({ author: userId })
       .populate("author", "fullName email role profilepic")
       .populate("comments.user", "fullName profilepic")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
-      message: "You own feed get successfully",
+      success: true,
+      message: "Your posts fetched successfully",
       posts,
     });
   } catch (error) {
-    console.log("Error in getting the own feed");
+    console.error("Error getting own feed:", error);
+
     return res.status(500).json({
-      message: "internal server error",
+      message: "Internal server error",
       error: error.message,
     });
   }
 };
 
-//Making the controller for delete the post
+// ======================================
+// DELETE POST
+// ======================================
 
 const deletePost = async (req, res) => {
   try {
@@ -196,50 +229,56 @@ const deletePost = async (req, res) => {
     const post = await Post.findById(postId);
 
     if (!post) {
-      return res.status(400).json({
-        messgae: "Post not found to delete",
+      return res.status(404).json({
+        message: "Post not found",
       });
     }
 
     if (post.author.toString() !== userId.toString()) {
-      return res.status(400).json({
-        message:
-          "You are not allowed to delete the post it only allowed by the author",
+      return res.status(403).json({
+        message: "You are not allowed to delete this post",
       });
     }
+
     await post.deleteOne();
 
-    res.status(200).json({
+    return res.status(200).json({
+      success: true,
       message: "Post deleted successfully",
     });
   } catch (error) {
-    console.log("Error in deleting post");
-    res.status(500).json({
-      message: "Failed to delet the post ",
+    console.error("Delete post error:", error);
+
+    return res.status(500).json({
+      message: "Failed to delete the post",
       error: error.message,
     });
   }
 };
 
-// making the controller for the likeunlike
+// ======================================
+// LIKE / UNLIKE POST
+// ======================================
+
 const likeUnlike = async (req, res) => {
   try {
     const userId = req.user.userId;
     const postId = req.params.postId;
 
     const post = await Post.findById(postId);
+
     if (!post) {
-      return res.status(400).json({
-        message: "post not found",
+      return res.status(404).json({
+        message: "Post not found",
       });
     }
 
-    const alreadyliked = post.likes.some(
+    const alreadyLiked = post.likes.some(
       (id) => id.toString() === userId.toString(),
     );
 
-    //to remove the user which are alredy like and make it unlike
-    if (alreadyliked) {
+    // UNLIKE
+    if (alreadyLiked) {
       post.likes = post.likes.filter(
         (id) => id.toString() !== userId.toString(),
       );
@@ -247,45 +286,65 @@ const likeUnlike = async (req, res) => {
       await post.save();
 
       return res.status(200).json({
-        message: "Like is succesfully unlike",
+        success: true,
+        message: "Post unliked successfully",
         liked: false,
+        likes: post.likes,
       });
     }
 
+    // LIKE
     post.likes.push(userId);
     await post.save();
+
+    // Notify post author when another user likes the post
+    await createNotification({
+      recipient: post.author,
+      sender: userId,
+      type: "new_like",
+      message: "liked your post",
+      referenceId: post._id,
+      referenceModel: "Post",
+      io: req.app.get("io"),
+    });
+
     return res.status(200).json({
+      success: true,
       message: "Post liked successfully",
       liked: true,
+      likes: post.likes,
       post,
     });
   } catch (error) {
-    console.log("Error in thr liking system");
-    res.status(500).json({
-      message: "Failed the liking system",
+    console.error("Like/unlike error:", error);
+
+    return res.status(500).json({
+      message: "Failed to process like",
+      error: error.message,
     });
   }
 };
 
-//Making the comment system
+// ======================================
+// ADD COMMENT
+// ======================================
 
 const addComment = async (req, res) => {
   try {
     const userId = req.user.userId;
     const postId = req.params.postId;
-
     const { text } = req.body;
 
     if (!text || text.trim() === "") {
-      res.status(400).json({
-        message: "text cannot be empty",
+      return res.status(400).json({
+        message: "Comment cannot be empty",
       });
     }
 
     const post = await Post.findById(postId);
 
     if (!post) {
-      return res.status(400).json({
+      return res.status(404).json({
         message: "Post not found",
       });
     }
@@ -297,16 +356,29 @@ const addComment = async (req, res) => {
 
     await post.save();
 
-    const updatePost = await Post.findById(postId)
+    // Notify post author when another user comments
+    await createNotification({
+      recipient: post.author,
+      sender: userId,
+      type: "new_comment",
+      message: "commented on your post",
+      referenceId: post._id,
+      referenceModel: "Post",
+      io: req.app.get("io"),
+    });
+
+    const updatedPost = await Post.findById(postId)
       .populate("author", "fullName email role profilepic")
       .populate("comments.user", "fullName profilepic");
 
-    return res.status(200).json({
-      message: "Comment successfully",
-      post: updatePost,
+    return res.status(201).json({
+      success: true,
+      message: "Comment added successfully",
+      post: updatedPost,
     });
   } catch (error) {
-    console.log("Add comment error:", error);
+    console.error("Add comment error:", error);
+
     return res.status(500).json({
       message: "Failed to add comment",
       error: error.message,
@@ -314,7 +386,9 @@ const addComment = async (req, res) => {
   }
 };
 
-//Making the controller for deleting the comments
+// ======================================
+// DELETE COMMENT
+// ======================================
 
 const deleteComment = async (req, res) => {
   try {
@@ -323,38 +397,48 @@ const deleteComment = async (req, res) => {
     const commentId = req.params.commentId;
 
     const post = await Post.findById(postId);
+
     if (!post) {
-      return res.status(400).json({
+      return res.status(404).json({
         message: "Post not found",
       });
     }
 
     const comment = post.comments.id(commentId);
+
     if (!comment) {
-      return res.status(400).json({
+      return res.status(404).json({
         message: "Comment not found",
       });
     }
+
     if (comment.user.toString() !== userId.toString()) {
-      return res.status(400).json({
-        message: "You are not allowed delete post",
+      return res.status(403).json({
+        message: "You are not allowed to delete this comment",
       });
     }
 
     comment.deleteOne();
     await post.save();
 
-    res.status(200).json({
+    return res.status(200).json({
+      success: true,
       message: "Comment deleted successfully",
     });
   } catch (error) {
-    console.log("Delete comment error:", error);
-    res.status(500).json({
-      message: "Failed to Delete comment",
+    console.error("Delete comment error:", error);
+
+    return res.status(500).json({
+      message: "Failed to delete comment",
       error: error.message,
     });
   }
 };
+
+// ======================================
+// EXPORT CONTROLLERS
+// ======================================
+
 module.exports = {
   createPost,
   getAllPost,

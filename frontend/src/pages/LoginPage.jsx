@@ -44,6 +44,7 @@ const features = [
 ];
 
 const LoginPage = () => {
+  const { setIsLogging, setUsers } = useContext(AuthContext);
   const navigate = useNavigate();
   const [loginData, setLoginData] = useState({
     email: "",
@@ -51,7 +52,6 @@ const LoginPage = () => {
   });
   const [loading, setLoding] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { setIsLogging,setUsers } = useContext(AuthContext);
   const handleChange = (e) => {
     setLoginData({
       ...loginData,
@@ -60,23 +60,31 @@ const LoginPage = () => {
   };
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Connect your existing login function
+
     try {
       setLoding(true);
+
+      // Login request
       await userLogin(loginData);
 
+      // Fetch authenticated user from backend
       const userInfo = await getLoggedUser();
-      setUsers(userInfo.data.user)
+
+      // Save user in AuthContext
+      setUsers(userInfo.data.user);
       setIsLogging(true);
-      navigate("/educonnect");
+
       toast.success("Login successfully");
+
+      navigate("/educonnect");
     } catch (error) {
-      toast.error("login failed");
+      console.log(error);
+
+      toast.error(error.response?.data?.message || "Login failed");
     } finally {
       setLoding(false);
     }
   };
-
 
   return (
     <main

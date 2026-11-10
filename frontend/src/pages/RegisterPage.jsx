@@ -74,12 +74,13 @@ const RegisterPage = () => {
     try {
       setLoding(true);
 
-       await userRegister(formData);
+      await userRegister(formData);
       toast.success("Regitration successfull");
       navigate("/login");
     } catch (error) {
       console.log(error);
-      toast.error(res.data.message || "Registration Failed");
+
+      toast.error(error.response?.data?.message || "Registration Failed");
     } finally {
       setLoding(false);
     }

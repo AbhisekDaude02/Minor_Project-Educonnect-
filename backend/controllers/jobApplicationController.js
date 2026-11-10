@@ -1,7 +1,7 @@
 const Job = require("../models/jobModel");
-const jobApplication = require("../models/jobApplicationModel");
-const { cloudinary } = require("../utils/cloudinary");
 const JobApplication = require("../models/jobApplicationModel");
+const { cloudinary } = require("../utils/cloudinary");
+
 
 // Making the controller to apply for the job or intership
 
@@ -44,7 +44,7 @@ const applyJob = async (req,res)=>{
         })
       }
 
-      const existingApplicant = await jobApplication.findOne({
+      const existingApplicant = await JobApplication.findOne({
         job:jobId,
         applicant:userId
       });
@@ -81,7 +81,7 @@ const applyJob = async (req,res)=>{
         });
 
 
-        const application = await jobApplication.create({
+        const application = await JobApplication.create({
             job: jobId,
             applicant: userId,
             coverLetter: coverLetter.trim(),
@@ -90,7 +90,7 @@ const applyJob = async (req,res)=>{
         });
 
   
-        const savedApplication = await jobApplication.findById(application._id)
+        const savedApplication = await JobApplication.findById(application._id)
             .populate("applicant", "fullName email role profilepic")
             .populate("job", "title company");
 
@@ -113,31 +113,31 @@ const applyJob = async (req,res)=>{
 
 // Making the controller to get the student own jobapplication
 
-const getOwnJobApplication = async (req,res)=>{
+const getOwnJobApplication = async (req, res) => {
     try {
         const userId = req.user.userId;
-        const jobApplication = await JobApplication.findOne({applicant:userId});
 
-        if(!jobApplication){
-            return res.status(400).json({
-                message:"job application  not found"
-            })
-        }
+        const applications = await JobApplication.find({
+            applicant: userId
+        })
+        .populate("job", "title company location type workMode deadline")
+        .sort({ createdAt: -1 });
 
         return res.status(200).json({
-            message:"You Job appplication found successfully",
-            jobApplication
-        })
-    } catch (error) {
-       console.log("Error in the getting own job application");
+            message: "Your job applications retrieved successfully",
+            totalApplications: applications.length,
+            applications
+        });
 
-       return res.status(500).json({
-        message:"Failed to find the you job applicatio",
-        error:error.message
-       })
-        
+    } catch (error) {
+        console.log("Error getting own applications:", error);
+
+        return res.status(500).json({
+            message: "Failed to retrieve your applications",
+            error: error.message
+        });
     }
-}
+};
 
 // Making the controller to get the job application of the applicant by professional
 

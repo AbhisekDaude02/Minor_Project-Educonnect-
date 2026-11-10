@@ -5,6 +5,7 @@ import App from "./App.jsx";
 import { AuthProvider } from "./context/authContext.jsx";
 import { FeedProvider } from "./context/feedContext.jsx";
 
+
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <AuthProvider>

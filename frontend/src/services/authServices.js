@@ -15,3 +15,6 @@ export const userLogout = ()=>{
 export const getLoggedUser = ()=>{
     return API.get("/auth/getloginuser")
 }
+export const updateProfile = (formData) => {
+  return API.put("/auth/updateprofile", formData);
+};

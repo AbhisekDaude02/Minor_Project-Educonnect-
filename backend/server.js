@@ -14,7 +14,8 @@ const messageRoutes = require("./routes/messageRoutes");
 const socketConnection= require("./socket/socket");
 const notesRoutes = require("./routes/notesRoutes");
 const jobRoutes = require("./routes/jobRoutes");
-const jobApplicationRoutes = require("./routes/jobApplicationRoutes")
+const jobApplicationRoutes = require("./routes/jobApplicationRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 
 const app = express();
@@ -37,6 +38,7 @@ app.use("/api/message", messageRoutes);
 app.use("/api/notes",notesRoutes);
 app.use("/api/job",jobRoutes);
 app.use("/api/applyjob",jobApplicationRoutes);
+app.use("/api/notification", notificationRoutes);
 //Creating the server using the http 
 const server = http.createServer(app);
 const io = new Server(server,{

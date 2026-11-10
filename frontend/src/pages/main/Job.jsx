@@ -1,4 +1,3 @@
-
 import React, {
   useContext,
   useEffect,
@@ -23,14 +22,15 @@ import {
   FiUsers,
   FiSend,
   FiUploadCloud,
-  FiFileText,
   FiAlertCircle,
   FiFilter,
 } from "react-icons/fi";
 
 import { AuthContext } from "../../context/authContext";
-import { getAllJob } from "../../services/jobServices";
-
+import {
+  getAllJob,
+  applyForJob,
+} from "../../services/jobServices";
 
 // ==============================
 // Helper Functions
@@ -66,7 +66,6 @@ const getDaysLeft = (deadline) => {
   );
 };
 
-
 // ==============================
 // Main Job Component
 // ==============================
@@ -92,6 +91,7 @@ const Job = ({ userRole = "student" }) => {
   const [bookmarkedJobs, setBookmarkedJobs] = useState([]);
   const [appliedJobs, setAppliedJobs] = useState([]);
 
+  // Application form
   const [applicationForm, setApplicationForm] = useState({
     coverLetter: "",
     resume: null,
@@ -99,6 +99,7 @@ const Job = ({ userRole = "student" }) => {
 
   const [formError, setFormError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ==============================
   // Fetch Jobs From Backend
@@ -120,7 +121,6 @@ const Job = ({ userRole = "student" }) => {
               : [];
 
         setJobs(jobData);
-
       } catch (error) {
         console.error(
           "Error fetching jobs:",
@@ -131,7 +131,6 @@ const Job = ({ userRole = "student" }) => {
 
     fetchJobs();
   }, [setJobs]);
-
 
   // ==============================
   // Dynamic Categories
@@ -145,7 +144,6 @@ const Job = ({ userRole = "student" }) => {
       ),
     ];
   }, [jobs]);
-
 
   // ==============================
   // Search and Filtering
@@ -206,7 +204,6 @@ const Job = ({ userRole = "student" }) => {
     bookmarkedJobs,
   ]);
 
-
   // ==============================
   // Bookmark Function
   // ==============================
@@ -218,7 +215,6 @@ const Job = ({ userRole = "student" }) => {
         : [...previous, jobId]
     );
   };
-
 
   // ==============================
   // Apply Modal
@@ -236,7 +232,7 @@ const Job = ({ userRole = "student" }) => {
     setShowApplyModal(true);
   };
 
-
+  // Handle cover letter input
   const updateApplicationForm = (event) => {
     const { name, value } = event.target;
 
@@ -244,61 +240,121 @@ const Job = ({ userRole = "student" }) => {
       ...previous,
       [name]: value,
     }));
+
+    if (formError) {
+      setFormError("");
+    }
   };
 
+  // ==============================
+  // Submit Application to Backend
+  // ==============================
 
-  // UI-only application submission.
-  // Connect your applyJob API here when ready.
-
-  const handleApplicationSubmit = (event) => {
+  const handleApplicationSubmit = async (event) => {
     event.preventDefault();
 
     setFormError("");
 
+    if (isSubmitting) return;
+
+    // Validate selected job
+    if (!selectedJob?._id) {
+      setFormError("Please select a job before applying.");
+      return;
+    }
+
+    // Validate cover letter
     if (!applicationForm.coverLetter.trim()) {
       setFormError("Please enter your cover letter.");
       return;
     }
 
+    // Validate resume
     if (!applicationForm.resume) {
       setFormError("Please upload your resume.");
       return;
     }
 
-    if (applicationForm.resume.type !== "application/pdf") {
+    // Validate PDF format
+    if (
+      applicationForm.resume.type !== "application/pdf" &&
+      !applicationForm.resume.name.toLowerCase().endsWith(".pdf")
+    ) {
       setFormError("Please upload your resume in PDF format.");
       return;
     }
 
+    // Validate file size
     if (applicationForm.resume.size > 10 * 1024 * 1024) {
       setFormError("Resume must be smaller than 10 MB.");
       return;
     }
 
-    setAppliedJobs((previous) => [
-      ...previous,
-      selectedJob._id,
-    ]);
+    try {
+      setIsSubmitting(true);
 
-    setShowApplyModal(false);
-    setSuccessMessage("Your application has been submitted.");
+      // Create FormData
+      const formData = new FormData();
 
-    setTimeout(() => {
-      setSuccessMessage("");
-    }, 3000);
+      formData.append(
+        "coverLetter",
+        applicationForm.coverLetter.trim()
+      );
+
+      formData.append(
+        "resume",
+        applicationForm.resume
+      );
+
+      // API request
+      await applyForJob(selectedJob._id, formData);
+
+      // Update applied jobs locally
+      setAppliedJobs((previous) =>
+        previous.includes(selectedJob._id)
+          ? previous
+          : [...previous, selectedJob._id]
+      );
+
+      // Reset form
+      setApplicationForm({
+        coverLetter: "",
+        resume: null,
+      });
+
+      // Close modal
+      setShowApplyModal(false);
+      setSelectedJob(null);
+
+      // Success message
+      setSuccessMessage(
+        "Your application has been submitted successfully."
+      );
+
+    } catch (error) {
+      console.error("Error applying for job:", error);
+
+      setFormError(
+        error.response?.data?.message ||
+        "Failed to submit your application. Please try again."
+      );
+
+    } finally {
+      setIsSubmitting(false);
+    }
   };
-
 
   // ==============================
   // Close Modals
   // ==============================
 
   const closeModal = () => {
+    if (isSubmitting) return;
+
     setSelectedJob(null);
     setShowApplyModal(false);
     setFormError("");
   };
-
 
   // ==============================
   // Render
@@ -321,7 +377,6 @@ const Job = ({ userRole = "student" }) => {
           </p>
         </div>
 
-
         {/* Search and Filters */}
 
         <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -342,7 +397,6 @@ const Job = ({ userRole = "student" }) => {
 
             </div>
 
-
             <div className="flex flex-col gap-3 sm:flex-row">
 
               <select
@@ -356,7 +410,6 @@ const Job = ({ userRole = "student" }) => {
                   </option>
                 ))}
               </select>
-
 
               <select
                 value={workMode}
@@ -374,7 +427,6 @@ const Job = ({ userRole = "student" }) => {
           </div>
 
         </div>
-
 
         {/* Tabs */}
 
@@ -407,7 +459,6 @@ const Job = ({ userRole = "student" }) => {
 
           </div>
 
-
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <FiFilter />
             {filteredJobs.length} opportunities found
@@ -415,10 +466,7 @@ const Job = ({ userRole = "student" }) => {
 
         </div>
 
-
-        {/* ==============================
-            Job Cards
-        ============================== */}
+        {/* Job Cards */}
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
 
@@ -471,7 +519,6 @@ const Job = ({ userRole = "student" }) => {
 
                     </div>
 
-
                     <div className="flex shrink-0 items-center gap-2">
 
                       <span
@@ -483,7 +530,6 @@ const Job = ({ userRole = "student" }) => {
                       >
                         {job.status || "Unknown"}
                       </span>
-
 
                       {!isProfessional && (
                         <button
@@ -505,20 +551,17 @@ const Job = ({ userRole = "student" }) => {
 
                   </div>
 
-
                   {/* Job Title */}
 
                   <h2 className="mb-3 text-xl font-bold text-slate-900">
                     {job.title}
                   </h2>
 
-
                   {/* Description */}
 
                   <p className="mb-5 line-clamp-2 text-sm leading-6 text-slate-500">
                     {job.description}
                   </p>
-
 
                   {/* Job Information */}
 
@@ -546,7 +589,6 @@ const Job = ({ userRole = "student" }) => {
 
                   </div>
 
-
                   {/* Skills */}
 
                   <div className="mb-5 flex flex-wrap gap-2">
@@ -572,7 +614,6 @@ const Job = ({ userRole = "student" }) => {
 
                   </div>
 
-
                   {/* Salary and Deadline */}
 
                   <div className="mb-5 flex flex-col justify-between gap-4 border-t border-slate-100 pt-4 sm:flex-row sm:items-center">
@@ -589,7 +630,6 @@ const Job = ({ userRole = "student" }) => {
                       </p>
 
                     </div>
-
 
                     <div>
 
@@ -622,7 +662,6 @@ const Job = ({ userRole = "student" }) => {
 
                   </div>
 
-
                   {/* Details and Apply Buttons */}
 
                   <div className="flex gap-3">
@@ -634,7 +673,6 @@ const Job = ({ userRole = "student" }) => {
                       Details
                       <FiArrowUpRight />
                     </button>
-
 
                     {!isProfessional && (
 
@@ -674,7 +712,6 @@ const Job = ({ userRole = "student" }) => {
 
         </div>
 
-
         {/* Empty State */}
 
         {filteredJobs.length === 0 && (
@@ -712,10 +749,7 @@ const Job = ({ userRole = "student" }) => {
 
       </div>
 
-
-      {/* ==============================
-          Success Message
-      ============================== */}
+      {/* Success Message */}
 
       <AnimatePresence>
 
@@ -744,7 +778,6 @@ const Job = ({ userRole = "student" }) => {
         )}
 
       </AnimatePresence>
-
 
       {/* ==============================
           JOB DETAILS MODAL
@@ -784,7 +817,6 @@ const Job = ({ userRole = "student" }) => {
 
               </div>
 
-
               <button
                 onClick={closeModal}
                 className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-800"
@@ -794,28 +826,22 @@ const Job = ({ userRole = "student" }) => {
 
             </div>
 
-
             {/* Title */}
 
             <h2 className="mb-4 text-2xl font-bold text-slate-900">
               {selectedJob.title}
             </h2>
 
-
             {/* Tags */}
 
             <div className="mb-6 flex flex-wrap gap-2">
 
               <Tag>{formatType(selectedJob.type)}</Tag>
-
               <Tag>{selectedJob.workMode}</Tag>
-
               <Tag>{selectedJob.experienceLevel}</Tag>
-
               <Tag>{selectedJob.category}</Tag>
 
             </div>
-
 
             {/* Job Information */}
 
@@ -865,7 +891,6 @@ const Job = ({ userRole = "student" }) => {
 
             </div>
 
-
             {/* Description */}
 
             <Section title="Job Description">
@@ -875,7 +900,6 @@ const Job = ({ userRole = "student" }) => {
               </p>
 
             </Section>
-
 
             {/* Skills */}
 
@@ -898,7 +922,6 @@ const Job = ({ userRole = "student" }) => {
 
             </Section>
 
-
             {/* Application Instructions */}
 
             <Section title="Application Instructions">
@@ -909,7 +932,6 @@ const Job = ({ userRole = "student" }) => {
               </p>
 
             </Section>
-
 
             {/* Status */}
 
@@ -933,7 +955,6 @@ const Job = ({ userRole = "student" }) => {
 
             </div>
 
-
             {/* Details Modal Buttons */}
 
             <div className="mt-6 flex gap-3">
@@ -944,7 +965,6 @@ const Job = ({ userRole = "student" }) => {
               >
                 Close
               </button>
-
 
               {!isProfessional && (
 
@@ -977,7 +997,6 @@ const Job = ({ userRole = "student" }) => {
 
       </Modal>
 
-
       {/* ==============================
           APPLY MODAL
       ============================== */}
@@ -994,6 +1013,7 @@ const Job = ({ userRole = "student" }) => {
           <div className="mb-6 flex items-start justify-between">
 
             <div>
+
               <h2 className="text-xl font-bold text-slate-900">
                 Apply for Opportunity
               </h2>
@@ -1011,16 +1031,15 @@ const Job = ({ userRole = "student" }) => {
 
             </div>
 
-
             <button
               onClick={closeModal}
-              className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
+              disabled={isSubmitting}
+              className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 disabled:cursor-not-allowed"
             >
               <FiX size={22} />
             </button>
 
           </div>
-
 
           {/* Application Form */}
 
@@ -1040,10 +1059,10 @@ const Job = ({ userRole = "student" }) => {
                 rows="6"
                 placeholder="Introduce yourself and explain why you are suitable for this opportunity..."
                 className="form-input w-full resize-none"
+                disabled={isSubmitting}
               />
 
             </FormField>
-
 
             {/* Resume Upload */}
 
@@ -1067,20 +1086,25 @@ const Job = ({ userRole = "student" }) => {
 
                 <input
                   type="file"
+                  name="resume"
                   accept="application/pdf,.pdf"
                   className="hidden"
-                  onChange={(event) =>
+                  disabled={isSubmitting}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] || null;
+
                     setApplicationForm((previous) => ({
                       ...previous,
-                      resume: event.target.files?.[0] || null,
-                    }))
-                  }
+                      resume: file,
+                    }));
+
+                    setFormError("");
+                  }}
                 />
 
               </label>
 
             </FormField>
-
 
             {/* Error */}
 
@@ -1088,17 +1112,27 @@ const Job = ({ userRole = "student" }) => {
               <ErrorMessage message={formError} />
             )}
 
-
-            {/* Submit */}
+            {/* Submit Button */}
 
             <button
               type="submit"
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3.5 font-semibold text-white transition hover:bg-emerald-700"
+              disabled={isSubmitting}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3.5 font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-400"
             >
-              <FiSend />
-              Submit Application
-            </button>
 
+              {isSubmitting ? (
+                <>
+                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Submitting Application...
+                </>
+              ) : (
+                <>
+                  <FiSend />
+                  Submit Application
+                </>
+              )}
+
+            </button>
 
             <p className="text-center text-xs text-slate-400">
               Make sure your resume and application details are correct before submitting.
@@ -1113,7 +1147,6 @@ const Job = ({ userRole = "student" }) => {
     </div>
   );
 };
-
 
 // ==============================
 // Reusable Components
@@ -1157,7 +1190,6 @@ const Modal = ({ open, onClose, children }) => (
 
 );
 
-
 const Tag = ({ children }) => (
 
   <span className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold capitalize text-emerald-700">
@@ -1165,7 +1197,6 @@ const Tag = ({ children }) => (
   </span>
 
 );
-
 
 const InfoItem = ({ icon, label, value }) => (
 
@@ -1189,7 +1220,6 @@ const InfoItem = ({ icon, label, value }) => (
 
 );
 
-
 const Section = ({ title, children }) => (
 
   <div className="mb-6">
@@ -1203,7 +1233,6 @@ const Section = ({ title, children }) => (
   </div>
 
 );
-
 
 const FormField = ({ label, children }) => (
 
@@ -1219,7 +1248,6 @@ const FormField = ({ label, children }) => (
 
 );
 
-
 const ErrorMessage = ({ message }) => (
 
   <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-600">
@@ -1228,6 +1256,5 @@ const ErrorMessage = ({ message }) => (
   </div>
 
 );
-
 
 export default Job;
